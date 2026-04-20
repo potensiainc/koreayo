@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:koreayo.com)",
+      "Bash(node:*)",
+      "Bash(del /Q \"D:\\\\n8n\\\\koreayo\\\\parse_qa_json_code.js\" \"D:\\\\n8n\\\\koreayo\\\\update_workflow.js\")",
+      "Bash(curl:*)",
+      "Bash(git init:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Koreayo Content Explorer auto-discovery workflow\n\n- n8n workflow with Claude API integration for topic discovery\n- Anthropic API direct call \\(Railway compatible\\)\n- Duplicate filtering with Jaccard similarity\n- TAXONOMY validation for all fields\n- Agent prompt from koreayo-content-explorer.md applied\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "WebFetch(domain:www.koreayo.com)",
+      "WebFetch(domain:blog.gaijinpot.com)",
+      "WebFetch(domain:gaijinpot.com)",
+      "Bash(powershell Compress-Archive:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(where:*)",
+      "Bash(7z l:*)",
+      "Bash(dir:*)",
+      "Bash(git commit:*)",
+      "Bash(git reset:*)"
+    ]
+  }
+}
