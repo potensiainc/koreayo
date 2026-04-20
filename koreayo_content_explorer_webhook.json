@@ -1,0 +1,305 @@
+{
+  "name": "Koreayo Content Explorer - Webhook to Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "koreayo-content-explorer",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        0
+      ],
+      "webhookId": "koreayo-content-explorer"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract topics array from webhook body\nconst body = $input.first().json.body || $input.first().json;\n\nif (!body.topics || !Array.isArray(body.topics)) {\n  throw new Error('Invalid payload: topics array not found');\n}\n\nconst generatedAt = body.generated_at || new Date().toISOString();\nconst discoverySummary = body.discovery_summary || '';\n\n// Transform each topic into a row for Google Sheets\nreturn body.topics.map((topic, idx) => {\n  // Generate topic_id\n  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');\n  const topicId = `KRY-EXP-${today}-${String(idx + 1).padStart(3, '0')}`;\n  \n  return {\n    json: {\n      topic_id: topicId,\n      status: 'queued',\n      priority: topic.priority || 5,\n      category: topic.category || '',\n      subcategory: topic.subcategory || '',\n      seed_keyword: topic.seed_keyword || '',\n      problem_angle: topic.problem_angle || '',\n      target_type: topic.target_type || 'general',\n      content_type: topic.content_type || 'guide',\n      search_intent: topic.search_intent || 'informational',\n      language: topic.language || 'en',\n      geo_scope: topic.geo_scope || 'Korea',\n      monetization_path: topic.monetization_path || 'adsense',\n      freshness_level: topic.freshness_level || 'evergreen',\n      source_needed: topic.source_needed || 'no',\n      source_note: topic.source_note || '',\n      internal_cluster: topic.internal_cluster || '',\n      seo_title_hint: topic.seo_title_hint || '',\n      note: topic.note || '',\n      created_at: generatedAt,\n      discovery_summary: discoverySummary,\n      retry_count: 0,\n      qa_score: '',\n      qa_decision: '',\n      published_url: '',\n      last_error: '',\n      next_retry_at: ''\n    }\n  };\n});"
+      },
+      "id": "parse-topics",
+      "name": "Parse Topics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "QUEUE",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "topic_id",
+              "displayName": "topic_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "subcategory",
+              "displayName": "subcategory",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "seed_keyword",
+              "displayName": "seed_keyword",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "problem_angle",
+              "displayName": "problem_angle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "target_type",
+              "displayName": "target_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "content_type",
+              "displayName": "content_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "search_intent",
+              "displayName": "search_intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "language",
+              "displayName": "language",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "geo_scope",
+              "displayName": "geo_scope",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "monetization_path",
+              "displayName": "monetization_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "freshness_level",
+              "displayName": "freshness_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_needed",
+              "displayName": "source_needed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_note",
+              "displayName": "source_note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "internal_cluster",
+              "displayName": "internal_cluster",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "seo_title_hint",
+              "displayName": "seo_title_hint",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED",
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "append-sheets",
+      "name": "Append to QUEUE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        40,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MXIFz6a25EZv0J0R",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, added_count: $input.all().length, message: 'Topics added to QUEUE successfully' } }}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        260,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Topics": {
+      "main": [
+        [
+          {
+            "node": "Append to QUEUE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to QUEUE": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "active": true
+}

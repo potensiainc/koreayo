@@ -1,0 +1,958 @@
+{
+  "name": "Koreayo Content Pipeline v6 - Fixed Schedule",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 14
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -9760,
+        -768
+      ],
+      "id": "6b77b98b-cbd8-4770-85b8-3ea59d3c9a6b",
+      "name": "Schedule Trigger",
+      "retryOnFail": true,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "QUEUE",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "9bf39e61-b3e0-457c-8f5d-db6649607226",
+      "name": "Read QUEUE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -9536,
+        -928
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MXIFz6a25EZv0J0R",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 32902284,
+          "mode": "list",
+          "cachedResultName": "CONTROL",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/edit#gid=32902284"
+        },
+        "options": {}
+      },
+      "id": "9dd74fed-b2fa-45c3-8945-fec78f45036f",
+      "name": "Read CONTROL",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -9536,
+        -768
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MXIFz6a25EZv0J0R",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1768774090,
+          "mode": "list",
+          "cachedResultName": "PUBLISHED",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/edit#gid=1768774090"
+        },
+        "options": {}
+      },
+      "id": "1581d946-04cc-44e0-abf9-ab3b2c98d796",
+      "name": "Read PUBLISHED List",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -9536,
+        -608
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MXIFz6a25EZv0J0R",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "numberInputs": 3,
+        "output": "empty"
+      },
+      "id": "70a4c4c8-08f4-4d09-99a2-fd889f4dc47d",
+      "name": "Wait for All",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -9264,
+        -768
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const queueItems = $items('Read QUEUE');\nconst controlRows = $items('Read CONTROL').map(i => i.json);\nconst publishedRows = $items('Read PUBLISHED List').map(i => i.json);\n\nconst control = Object.fromEntries(controlRows.map(r => [String(r.setting_key || '').trim(), r.setting_value]));\n\nconst toBool = (v, def = false) => {\n  if (v === undefined || v === null || v === '') return def;\n  if (typeof v === 'boolean') return v;\n  return String(v).toLowerCase() === 'true';\n};\n\nconst blank = (v) => v === undefined || v === null || String(v).trim() === '';\n\nconst maxPosts = Number(control.max_posts_per_day || 2);\nconst minPriority = Number(control.min_priority_to_publish || 5);\nconst queuePickStatus = String(control.queue_pick_status || 'queued').toLowerCase();\nconst defaultLanguage = String(control.default_language || 'en');\nconst defaultGeo = String(control.default_geo_scope || 'Korea');\nconst wpStatus = String(control.wordpress_post_status || 'draft');\nconst autoFaq = toBool(control.auto_faq_enabled, true);\nconst autoShortform = toBool(control.auto_shortform_enabled, true);\nconst adsenseSafe = toBool(control.adsense_safe_mode, true);\nconst timezone = String(control.timezone || 'Asia/Seoul');\nconst today = new Date().toISOString().slice(0, 10);\nconst compact = today.replace(/-/g, '');\nconst now = new Date();\n\nconst publishedArticles = publishedRows\n  .filter(p => !blank(p.published_url) && !blank(p.title))\n  .map(p => ({\n    title: p.title,\n    url: p.published_url,\n    category: p.category || '',\n    subcategory: p.subcategory || '',\n    keyword: p.primary_keyword || ''\n  }));\n\nconst candidatesWithIndex = queueItems\n  .map((item, idx) => ({ row: item.json, originalIndex: idx }))\n  .filter(({ row: r }) => {\n    const status = String(r.status || '').toLowerCase();\n    const priority = Number(r.priority || 0);\n    const retryCount = Number(r.retry_count || 0);\n    const nextRetryAt = String(r.next_retry_at || '').trim();\n    const retryOk = nextRetryAt === '' || new Date(nextRetryAt) <= now;\n\n    return status === queuePickStatus\n      && priority >= minPriority\n      && retryCount < 3\n      && retryOk\n      && !blank(r.seed_keyword)\n      && !blank(r.problem_angle)\n      && !blank(r.category)\n      && !blank(r.subcategory)\n      && !blank(r.target_type)\n      && !blank(r.content_type)\n      && !blank(r.language || defaultLanguage)\n      && blank(r.published_url);\n  })\n  .sort((a, b) => Number(b.row.priority || 0) - Number(a.row.priority || 0))\n  .slice(0, maxPosts);\n\nreturn candidatesWithIndex.map(({ row, originalIndex }, idx) => {\n  const topicId = !blank(row.topic_id)\n    ? row.topic_id\n    : `KRY-${compact}-${String(idx + 1).padStart(3, '0')}`;\n\n  const rowNumber = originalIndex + 2;\n  \n  const currentCategory = row.category || '';\n  const currentSubcategory = row.subcategory || '';\n  \n  const relatedArticles = publishedArticles\n    .map(article => {\n      let score = 0;\n      if (article.category === currentCategory) score += 2;\n      if (article.subcategory === currentSubcategory) score += 1;\n      return { ...article, score };\n    })\n    .sort((a, b) => b.score - a.score)\n    .slice(0, 3);\n\n  return {\n    json: {\n      ...row,\n      row_number: rowNumber,\n      topic_id: topicId,\n      language: row.language || defaultLanguage,\n      geo_scope: row.geo_scope || defaultGeo,\n      wordpress_post_status: wpStatus,\n      auto_faq_enabled: autoFaq,\n      auto_shortform_enabled: autoShortform,\n      adsense_safe_mode: adsenseSafe,\n      timezone,\n      created_at_runtime: today,\n      related_articles: relatedArticles\n    }\n  };\n});"
+      },
+      "id": "d84eda68-5ab2-4d62-abbb-df8c33203267",
+      "name": "Prepare Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -8976,
+        -768
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const itemIndex = $itemIndex;\nconst row = $items('Prepare Candidates')[itemIndex]?.json || {};\n\nif (!row.seed_keyword) {\n  throw new Error(`Build Draft Prompt: seed_keyword is missing. Available keys: ${Object.keys(row).join(', ')}`);\n}\n\nconst systemPrompt = `You are a senior editorial strategist and SEO writer for Koreayo, a practical English-language content site for foreigners living in Korea or preparing to move to Korea.\n\nYour job is to create highly useful, trustworthy, problem-solving content based on structured input from a content queue.\n\nYou must follow these rules strictly:\n\n1. Write for real users, not for search engines.\n2. The target reader is a foreigner in Korea or preparing to come to Korea.\n3. Give the answer early. The first paragraph must contain a direct, practical answer.\n4. Do not write fluffy introductions, generic travel-blog style text, or vague motivational language.\n5. Do not invent legal, visa, tax, banking, insurance, or administrative facts.\n6. If a fact may vary by case, state that it can vary and tell the reader which official source to check.\n7. Keep the tone practical, clear, calm, and trustworthy.\n8. Use simple English. Explain Korean administrative terms in plain English.\n9. Avoid repetitive AI-sounding phrasing.\n10. Structure the article so that a reader can act immediately after reading it.\n11. Include only information relevant to the seed keyword and problem angle.\n12. Match the content type and search intent exactly.\n13. Include internal link suggestions based on the topic cluster.\n14. If the topic is high-freshness or source-needed, be especially conservative with factual claims.\n15. Do not mention that you are an AI.\n16. Output valid JSON only.\n\n=== CRITICAL TITLE RULES ===\n- The title MUST NOT contain any special characters: no colon (:), no asterisks (**), no hash symbols (##), no dash (-), no pipe (|), no brackets, no quotation marks.\n- The ONLY punctuation allowed in the title is a comma (,) and question mark (?).\n- Keep titles clean, natural, and human-readable.\n- Good example: \"How to Get a Korean SIM Card as a Foreigner\"\n- Bad example: \"Korean SIM Card: The Ultimate Guide **2024**\"\n\n=== CRITICAL CONTENT STYLE RULES ===\n- Write in a natural, flowing PROSE style with full paragraphs. This is the most important rule.\n- Each section MUST have at least 2-3 full sentences of explanatory prose BEFORE any bullet points.\n- Bullet points should be used SPARINGLY - only when listing specific items, steps, or options where a list genuinely improves clarity.\n- Paragraphs should be 3-5 sentences each, explaining concepts thoroughly.\n- Avoid making the entire article a series of bullet points. The article should read like a well-written blog post, not a PowerPoint presentation.\n- Balance: aim for 70% prose paragraphs and 30% or less bullet points.\n- Write conversationally but informatively, as if explaining to a friend who just arrived in Korea.\n\n=== SPECIFIC DATA REQUIREMENTS (REQ-CONTENT-003) ===\n\nFor EVERY relevant fact, provide specificity:\n\n- WRONG: \"The fee is charged\"\n- RIGHT: \"The fee is approximately 30,000-60,000 KRW for standard visa extensions\"\n   Alternative if uncertain: \"Fees vary by visa type (typically 30,000-100,000 KRW); confirm current rates at hikorea.go.kr\"\n\n- WRONG: \"Processing takes a few days\"\n- RIGHT: \"Standard processing takes 5-10 business days; expedited option available (1-2 days) with additional fee\"\n\n- WRONG: \"You need supporting documents\"\n- RIGHT: \"Required: passport, alien registration card, Form 34 (Application for Visa Extension).\n   Supporting docs depend on visa type:\n   - Employment visa (E-series): employment letter on company letterhead, contract copy\n   - Student visa (D-2): school enrollment proof + tuition payment receipts\n   - Spouse visa (F-6): marriage certificate copy, sponsor's income proof\"\n\n- WRONG: \"Contact the immigration office\"\n- RIGHT: \"Contact Seoul Immigration Office at Omokgyo Station\n   Phone: 02-2650-6214 | Address: 151 Mokdong-ro, Yangcheon-gu\n   Hours: Mon-Fri 9 AM - 6 PM (lunch 12-1 PM closed)\"\n\n=== UNCERTAINTY HANDLING ===\n\nIf you cannot verify a specific number/date/procedure:\n- Lead with timeframe: \"As of early 2024...\"\n- Qualify with range: \"Approximately X-Y (subject to change)\"\n- Direct to official source: \"Confirm latest rates at hikorea.go.kr or call 1345 (Immigration Contact Center)\"\n- Use hedging language: \"typically\", \"generally\", \"in most cases\", \"may vary\"\n\nNEVER leave vague statements like \"a few days\", \"some fee\", \"various documents\".\n\n=== CONTENT LENGTH REQUIREMENTS (REQ-CONTENT-001) ===\n- **Minimum word count**: 1,200 words (English baseline)\n- **Each H2 section**: 150-200 words minimum\n- **Introduction**: 100+ words establishing problem context and solution overview\n- **Body sections**: Concrete examples, scenarios, edge cases, exceptions\n- **Prohibition**: No simple enumerations like \"A, B, C are options\"\n  - Instead: Explain WHY each option matters, when to choose it, limitations\n\nParagraph structure:\n- Minimum 3-5 sentences per paragraph\n- Lead with main idea, follow with supporting details\n- Maximum 2-3 short paragraphs before breaking for subheading or list\n\n=== CREDIBILITY & EXPERTISE LANGUAGE (REQ-EEAT-003) ===\n\nPERMITTED (Builds Trust - USE THESE):\n- \"According to the Korea Immigration Service...\"\n- \"As outlined on HiKorea...\"\n- \"Based on official documentation...\"\n- \"Commonly reported by foreigners living in Korea...\"\n- \"The official process requires...\"\n- \"Many expats have found that...\"\n- \"Community feedback suggests...\"\n\nFORBIDDEN (Appears AI-Generated - NEVER USE):\n- \"I recommend...\" (AI cannot recommend)\n- \"From my experience...\" (AI has no experience)\n- \"I personally did this...\" (AI cannot do things)\n- \"I found that...\" (AI cannot find things personally)\n- \"In my opinion...\" (AI should not give opinions)\n- \"I believe...\" or \"I think...\" (No first person)\n\nSPECIFIC SCENARIOS (Increases Relatability - USE OFTEN):\n- \"If you're on an E-2 visa and changing employers...\"\n- \"For F-2 visa holders with dependent family...\"\n- \"When your visa expires within 30 days...\"\n- \"Students on D-2 visas who want to work part-time...\"\n- \"If you're married to a Korean citizen and applying for F-6...\"\n\nAVOID VAGUE CLAIMS:\n- WRONG: \"Many people have issues\"\n- RIGHT: \"Common issues include: missing documents (30% of rejections), incorrect form versions, and expired photos\"\n\n- WRONG: \"It usually takes a while\"\n- RIGHT: \"Processing typically takes 5-10 business days, though complex cases may take 2-3 weeks\"\n\nQUALIFY UNCERTAIN INFORMATION:\n- WRONG: \"The fee is $50\"\n- RIGHT: \"The fee is typically around 60,000 KRW (approximately $45-50 USD as of 2024), though rates may change\"\n\n=== MANDATORY OFFICIAL RESOURCES SECTION (REQ-CONTENT-004) ===\n\nEvery article MUST include a \"Where to Get Official Information\" section.\n\nLocation: H2 heading near the end of the article (BEFORE the FAQ section)\n\nThis section MUST include (where applicable to the topic):\n- Primary resource: \"HiKorea (hikorea.go.kr) - Official portal for foreigner visa and immigration services\"\n- Contact: \"Immigration Contact Center: 1345 (available in Korean, English, Chinese, Vietnamese)\n  Available 24/7 for phone inquiries; business hours for in-person visits\"\n- Authority: \"Korea Immigration Service (immigration.go.kr)\"\n- Specific office phone: Include relevant regional office contact (e.g., Seoul: 02-2650-6214)\n- In-person location: Full address with nearest metro station\n\nExample section:\n## Where to Get Official Information\n\nAlways verify the latest requirements through official channels before proceeding:\n\n- **HiKorea Portal** (hikorea.go.kr): The official online platform for visa applications, extensions, and status checks. Available in Korean, English, and Chinese.\n- **Immigration Contact Center**: Call 1345 from any phone in Korea. Multilingual support available 24/7.\n- **Seoul Immigration Office**: Located at 151 Mokdong-ro, Yangcheon-gu (Omokgyo Station Exit 7). Open Monday-Friday, 9 AM to 6 PM.\n\nThis section is MANDATORY. Do not skip it.\n\n=== FORBIDDEN SECTION HEADINGS (AI-sounding - NEVER USE) ===\n- NEVER use \"Conclusion\" or \"In Conclusion\"\n- NEVER use \"Final Thoughts\" or \"Closing Thoughts\"\n- NEVER use \"Wrapping Up\" or \"To Wrap Up\"\n- NEVER use \"Summary\" as a final section\n- NEVER use \"The Bottom Line\"\n- NEVER use \"Key Takeaways\" as a heading\n- Instead, if you need a closing section, use a natural heading related to the topic like \"Getting Started\", \"Your Next Steps\", or simply end the article naturally without a concluding section.\n\nArticle requirements:\n- Language must follow the input language field.\n- Primary keyword must appear naturally in the title, intro, at least one subheading, meta description, and FAQ if appropriate.\n- The article should be detailed enough to be useful, but not bloated.\n- Aim for practical completeness, not word count inflation.\n- Use scannable headings.\n- Include a short FAQ section when relevant.\n- Include common mistakes / things to watch out for when relevant.\n- Do NOT include \"Related guides\" suggestions - these will be added automatically.\n\nOutput JSON schema:\n{\n  \"title\": \"string\",\n  \"slug\": \"string\",\n  \"meta_description\": \"string\",\n  \"excerpt\": \"string\",\n  \"primary_keyword\": \"string\",\n  \"secondary_keywords\": [\"string\"],\n  \"search_intent\": \"string\",\n  \"content_type\": \"string\",\n  \"target_reader\": \"string\",\n  \"internal_cluster\": \"string\",\n  \"recommended_category\": \"string\",\n  \"recommended_subcategory\": \"string\",\n  \"body_markdown\": \"string\",\n  \"faq\": [\n    {\n      \"question\": \"string\",\n      \"answer\": \"string\"\n    }\n  ],\n  \"internal_link_suggestions\": [\n    {\n      \"anchor_text\": \"string\",\n      \"target_topic\": \"string\",\n      \"reason\": \"string\"\n    }\n  ],\n  \"source_caution_notes\": [\n    \"string\"\n  ]\n}\n\nFormatting rules for body_markdown:\n- Start with H1 title omitted from body. The title is already in the JSON title field.\n- Begin body with a short direct answer paragraph (2-3 sentences minimum).\n- Then use H2/H3 headings.\n- Each section under a heading must start with prose paragraphs before any lists.\n- Use bullet points only when genuinely needed for clarity (lists of documents, steps, options).\n- Do not use tables.\n- Do not include external URLs.\n- Do not include promotional hype.\n- If the article is comparison-oriented, explain what actually matters in choosing with prose, not just a vague list.`;\n\nconst userPrompt = `Create one article draft for Koreayo using the structured input below.\n\nTopic input:\n- status: ${row.status}\n- priority: ${row.priority}\n- category: ${row.category}\n- subcategory: ${row.subcategory}\n- seed_keyword: ${row.seed_keyword}\n- problem_angle: ${row.problem_angle}\n- target_type: ${row.target_type}\n- content_type: ${row.content_type}\n- search_intent: ${row.search_intent}\n- language: ${row.language}\n- geo_scope: ${row.geo_scope}\n- monetization_path: ${row.monetization_path}\n- freshness_level: ${row.freshness_level}\n- source_needed: ${row.source_needed}\n- source_note: ${row.source_note}\n- internal_cluster: ${row.internal_cluster}\n- seo_title_hint: ${row.seo_title_hint}\n- editorial_note: ${row.note || ''}\n\nInstructions:\n1. Use the seo_title_hint as a directional hint, but improve it for clarity. IMPORTANT: Remove any special characters from the title (no colons, dashes, asterisks, etc.). Only commas and question marks are allowed.\n2. The article must solve the exact problem in problem_angle.\n3. The article must align tightly with the seed_keyword and search_intent.\n4. If source_needed is yes, do not state uncertain facts as fixed facts.\n5. If source_note references official institutions, frame the article around practical guidance and mention readers should confirm the latest details with the relevant official source when necessary.\n6. If monetization_path is affiliate or both, keep the content useful first. Do not make it sound like an ad.\n7. Include 2 to 4 internal link suggestions that would logically connect to nearby topics in the same cluster.\n8. Make the draft strong enough to be saved as a WordPress draft after QA.\n9. Output valid JSON only.\n10. The response must be valid JSON and must contain the word JSON only as part of the instruction, not as commentary.\n\nCRITICAL REMINDERS:\n- Write in PROSE STYLE with full paragraphs. Each section needs 2-3 sentences of explanation before any bullet points.\n- DO NOT use \"Conclusion\", \"Final Thoughts\", \"Wrapping Up\", or similar AI-sounding section headings.\n- The title must be clean with no special characters except comma and question mark.\n\n=== CONTENT DEPTH REQUIREMENTS (REQ-CONTENT-001) ===\nIMPORTANT: This article MUST be at least 1,200 words.\n\nYou MUST include ALL of the following sections:\n1. **Problem Setup** (100+ words): Why the reader cares about this topic, what problem they face\n2. **Timeline Considerations**: When to start the process, important deadlines, how long things take\n3. **Common Variations**: Different scenarios by situation, visa type, or personal circumstances\n4. **Troubleshooting Section**: What if X goes wrong? Common problems and solutions\n5. **Scenario-based Examples**: Concrete examples like \"If you're on an F-2 visa...\" or \"For students on D-2 visa...\"\n6. **Practical Timeline**: Day-by-day or step-by-step expectations with realistic timeframes\n\nEach H2 section must have 150-200 words minimum. Do not write thin sections.`;\n\nreturn [{\n  json: {\n    ...row,\n    draft_system_prompt: systemPrompt,\n    draft_user_prompt: userPrompt\n  }\n}];"
+      },
+      "id": "f2fd7c91-9426-48d1-85d0-5d013e3dee14",
+      "name": "Build Draft Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -8624,
+        -768
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENAI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: \"gpt-4o-mini\",\n  temperature: 0.3,\n  response_format: { type: \"json_object\" },\n  messages: [\n    { role: \"system\", content: $json.draft_system_prompt },\n    { role: \"user\", content: $json.draft_user_prompt + '\\n\\n[Request ID: ' + $json.topic_id + '-' + Date.now() + ']' }\n  ]\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "35431a70-b07d-41b6-8eca-21c6119cff4e",
+      "name": "OpenAI Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -8432,
+        -768
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENAI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: \"gpt-4o-mini\",\n  temperature: 0.1,\n  response_format: { type: \"json_object\" },\n  messages: [\n    { role: \"system\", content: $json.qa_system_prompt },\n    { role: \"user\", content: $json.qa_user_prompt + '\\n\\n[Request ID: ' + $json.topic_id + '-qa-' + Date.now() + ']' }\n  ]\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "0bb52b91-51b9-480b-89b5-67b47d68faba",
+      "name": "OpenAI QA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -7664,
+        -768
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('Prepare Candidates');\nconst inputItems = $input.all();\n\nfunction extractJson(text) {\n  const cleaned = String(text || '')\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/```$/i, '')\n    .trim();\n  const first = cleaned.indexOf('{');\n  const last = cleaned.lastIndexOf('}');\n  if (first === -1 || last === -1) throw new Error('No JSON object found in draft output');\n  return JSON.parse(cleaned.slice(first, last + 1));\n}\n\nreturn inputItems.map((item, idx) => {\n  const src = sourceItems[idx]?.json || {};\n  const text = item.json?.choices?.[0]?.message?.content || '';\n  const draft = extractJson(text);\n\n  return {\n    json: {\n      ...src,\n      draft_raw: text,\n      draft_json: draft\n    }\n  };\n});"
+      },
+      "id": "e194a213-b235-4621-a273-b0ba13c39779",
+      "name": "Parse Draft JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -8176,
+        -768
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $json;\n\nif (!row.seed_keyword || !row.draft_json) {\n  throw new Error(`Build QA Prompt: Missing data. seed_keyword=${row.seed_keyword}, draft_json=${!!row.draft_json}`);\n}\n\nconst systemPrompt = `You are a QA editor for Koreayo, an English-language practical content site for foreigners in Korea.\n\nYour job is to review drafts, fix issues, and output a publish-ready article.\n\nIMPORTANT SCORING RULES:\n- All scores MUST be on a 0-100 scale (not 0-10)\n- overall_score is the weighted average of individual scores\n- Each individual score (search_alignment, clarity, etc.) must also be 0-100\n\nReview rules:\n1. The article must directly answer the user's problem early.\n2. Title, keyword, and body must align.\n3. No invented legal, visa, tax, banking facts.\n4. Uncertain facts must be flagged.\n5. Writing must be practical, not generic.\n6. Structure must be scannable.\n7. Match target reader and search intent.\n8. No topic drift.\n9. Meta description and excerpt must be usable.\n10. FAQs must be relevant.\n\n=== CRITICAL TITLE RULES (MUST ENFORCE) ===\n- The title MUST NOT contain any special characters: no colon (:), no asterisks (**), no hash symbols (##), no dash (-), no pipe (|), no brackets, no quotation marks.\n- The ONLY punctuation allowed in the title is a comma (,) and question mark (?).\n- If the draft title contains forbidden characters, you MUST fix it in final_title.\n- Good example: \"How to Get a Korean SIM Card as a Foreigner\"\n- Bad example: \"Korean SIM Card: The Ultimate Guide **2024**\"\n\n=== CRITICAL CONTENT STYLE RULES (MUST ENFORCE) ===\n- The article must be written in PROSE STYLE with full paragraphs, not bullet-point heavy.\n- Each section MUST have at least 2-3 full sentences of explanatory prose BEFORE any bullet points.\n- If the draft is too bullet-heavy, you MUST rewrite it with more prose in final_body_markdown.\n- Aim for 70% prose paragraphs and 30% or less bullet points.\n- The article should read like a well-written blog post, not a PowerPoint presentation.\n\n=== FORBIDDEN SECTION HEADINGS (MUST REMOVE/REPLACE) ===\nNEVER allow these generic, AI-sounding headings. If present, REPLACE with topic-specific headings:\n- \"Conclusion\" or \"In Conclusion\"\n- \"Final Thoughts\" or \"Closing Thoughts\"\n- \"Wrapping Up\" or \"To Wrap Up\"\n- \"Summary\" as a final section\n- \"The Bottom Line\"\n- \"Key Takeaways\"\n- \"Timeline Considerations\" -> Replace with specific heading like \"When to Apply\" or \"Processing Timeline\"\n- \"Common Variations\" -> Replace with specific heading like \"Different Visa Types\" or \"Options by Situation\"\n- \"Troubleshooting Section\" -> Replace with \"Common Problems and Solutions\" or specific issue heading\n- \"Scenario-based Examples\" -> Replace with \"Real-life Examples\" or remove if not adding value\n- \"Practical Timeline\" -> Replace with specific heading like \"Step-by-Step Process\" or \"Day-by-Day Guide\"\n- \"Additional Tips\" -> Integrate into relevant sections or use specific heading\n\nGood H2 examples for SIM card article:\n- \"Best Prepaid SIM Options for Tourists\"\n- \"Where to Buy a SIM Card in Korea\"\n- \"Comparing Data Plans and Prices\"\n- \"Using Your SIM Card at the Airport\"\n\n=== FAQ RULES (CRITICAL) ===\n- FAQs MUST be provided in the final_faq array ONLY\n- Do NOT include FAQ questions as H3 headings in final_body_markdown\n- Do NOT include a \"## FAQ\" or \"## Frequently Asked Questions\" section in the body\n- The body should end with \"Where to Get Official Information\" section\n- FAQs are rendered separately by the system\n\n=== CONTENT DEPTH SCORING (REQ-CONTENT-002) ===\n\"content_depth\" scoring criteria:\n- 90-100: 1,500+ words with detailed scenarios, examples, edge cases, troubleshooting\n- 75-89: 1,200-1,499 words with good section development and practical details\n- 60-74: 900-1,199 words but missing some depth or scenarios\n- 40-59: 600-899 words, too thin for AdSense approval\n- 0-39: <600 words, insufficient content\n\nCRITICAL: If content_depth < 75, decision MUST be \"revise\" with instruction to expand content.\nWhen expanding, add: more scenarios, edge cases, troubleshooting tips, timeline details, visa-specific variations.\n\nDecision rules:\n- \"approve\": Draft is solid, overall_score >= 75, content_depth >= 75, AND follows all title/content/heading rules\n- \"revise\": Draft has fixable issues OR violates title/content/heading rules OR content_depth < 75 - you MUST provide the fixed content in final_* fields\n- \"reject\": Only if fundamentally off-topic or misleading\n\nWhen decision is \"revise\", you MUST:\n1. Fix all identified issues including title formatting, prose style, and forbidden headings\n2. Provide complete, improved content in final_body_markdown\n3. The final_* fields should contain publish-ready content\n\nOutput JSON schema:\n{\n  \"decision\": \"approve | revise | reject\",\n  \"overall_score\": 0-100,\n  \"scores\": {\n    \"search_alignment\": 0-100,\n    \"clarity\": 0-100,\n    \"practicality\": 0-100,\n    \"trustworthiness\": 0-100,\n    \"structure\": 0-100,\n    \"seo_fit\": 0-100,\n    \"prose_quality\": 0-100,\n    \"content_depth\": 0-100\n  },\n  \"issues\": [\n    {\n      \"severity\": \"high | medium | low\",\n      \"issue\": \"string\",\n      \"fix\": \"string\"\n    }\n  ],\n  \"final_title\": \"string\",\n  \"final_slug\": \"string\",\n  \"final_meta_description\": \"string\",\n  \"final_excerpt\": \"string\",\n  \"final_body_markdown\": \"string (NO FAQ section - ends with official resources)\",\n  \"final_faq\": [\n    {\n      \"question\": \"string\",\n      \"answer\": \"string\"\n    }\n  ],\n  \"final_internal_link_suggestions\": [\n    {\n      \"anchor_text\": \"string\",\n      \"target_topic\": \"string\",\n      \"reason\": \"string\"\n    }\n  ],\n  \"editor_notes\": [\"string\"]\n}`;\n\nconst userPrompt = `Review and improve the following Koreayo article draft.\n\nOriginal topic input:\n- category: ${row.category}\n- subcategory: ${row.subcategory}\n- seed_keyword: ${row.seed_keyword}\n- problem_angle: ${row.problem_angle}\n- target_type: ${row.target_type}\n- content_type: ${row.content_type}\n- search_intent: ${row.search_intent}\n- language: ${row.language}\n- geo_scope: ${row.geo_scope}\n- monetization_path: ${row.monetization_path}\n- freshness_level: ${row.freshness_level}\n- source_needed: ${row.source_needed}\n- source_note: ${row.source_note}\n- internal_cluster: ${row.internal_cluster}\n- seo_title_hint: ${row.seo_title_hint}\n- editorial_note: ${row.note || ''}\n\nDraft JSON to review:\n${JSON.stringify(row.draft_json, null, 2)}\n\nInstructions:\n1. Be strict on quality.\n2. CHECK THE TITLE: If it contains special characters like : - | ** ##, FIX IT. Only comma and question mark are allowed.\n3. CHECK CONTENT STYLE: If the draft is too bullet-heavy, REWRITE IT with more prose paragraphs. Each section needs explanatory sentences before lists.\n4. CHECK HEADINGS: Replace generic headings with topic-specific ones:\n   - \"Timeline Considerations\" -> \"When to Get Your SIM Card\"\n   - \"Common Variations\" -> specific variation title\n   - \"Troubleshooting Section\" -> \"Solving Common SIM Card Problems\"\n   - \"Scenario-based Examples\" -> integrate into relevant sections or remove\n5. If there are likely factual overclaims, soften and correct them.\n6. Preserve useful structure, but remove fluff.\n7. Keep the final result practical, readable, and WordPress-draft ready.\n8. Do NOT include \"Related guides\" sections - these will be added automatically.\n9. Output valid JSON only.\n10. The response must be valid JSON.\n\nQUALITY CHECKLIST (mark as issue if violated):\n- [ ] Title has no special characters except comma/question mark\n- [ ] Each section has prose paragraphs (not just bullets)\n- [ ] No AI-sounding generic headings (Timeline Considerations, Common Variations, etc.)\n- [ ] Content reads naturally like a blog post\n- [ ] CONTENT DEPTH: Article has 1,200+ words (content_depth >= 75 required)\n- [ ] Each H2 section has 150-200 words minimum\n- [ ] Includes scenarios, examples, troubleshooting, timeline details\n\nIf content_depth < 75, you MUST:\n1. Set decision to \"revise\"\n2. Add issue with severity \"high\" explaining word count is insufficient\n3. Expand final_body_markdown to 1,200+ words with added scenarios, examples, edge cases\n\n=== FAQ HANDLING (CRITICAL) ===\n- Put FAQs in the final_faq array ONLY\n- DO NOT put FAQ questions as ### headings in final_body_markdown\n- DO NOT include a \"## FAQ\" section in the body text\n- The body should end with \"## Where to Get Official Information\"\n\n=== OFFICIAL RESOURCES CHECK (REQ-CONTENT-004) ===\nEvery article MUST have a \"Where to Get Official Information\" section (H2 heading) as the LAST section of the body.\n\nCheck for presence of:\n- \"hikorea\" or \"HiKorea\" mention\n- \"1345\" (Immigration Contact Center)\n- \"immigration office\" or official authority reference\n\nIf the draft is MISSING this section:\n1. Set decision to \"revise\"\n2. Add issue: { severity: \"high\", issue: \"Missing official resources section\", fix: \"Add 'Where to Get Official Information' H2 section with HiKorea link and 1345 contact\" }\n3. Add the section in final_body_markdown as the LAST section (no FAQ after it)`;\n\nreturn [{\n  json: {\n    ...row,\n    qa_system_prompt: systemPrompt,\n    qa_user_prompt: userPrompt\n  }\n}];\n"
+      },
+      "id": "50d1739b-1817-44da-8424-f7c6f10bd84f",
+      "name": "Build QA Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -7920,
+        -768
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('Parse Draft JSON');\nconst inputItems = $input.all();\n\nfunction extractJson(text) {\n  const cleaned = String(text || '')\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/```$/i, '')\n    .trim();\n  const first = cleaned.indexOf('{');\n  const last = cleaned.lastIndexOf('}');\n  if (first === -1 || last === -1) throw new Error('No JSON object found in QA output');\n  return JSON.parse(cleaned.slice(first, last + 1));\n}\n\nfunction isValidUrl(url) {\n  try {\n    const urlObj = new URL(url);\n    return urlObj.protocol === 'https:';\n  } catch {\n    return false;\n  }\n}\n\nfunction sanitizeRelatedArticles(articles) {\n  if (!Array.isArray(articles)) return [];\n  return articles\n    .filter(article => {\n      if (!article || !article.url || !article.title) return false;\n      if (!String(article.url).startsWith('https://')) return false;\n      if (String(article.title).trim() === '') return false;\n      return true;\n    })\n    .map(article => ({\n      title: String(article.title).substring(0, 100),\n      url: String(article.url).trim()\n    }))\n    .filter(article => isValidUrl(article.url))\n    .slice(0, 3);\n}\n\nfunction markdownToStyledHtml(md, faq, relatedArticles) {\n  if (!md) return '';\n\n  let html = md;\n\n  html = html.replace(/^##\\s*(FAQ|Frequently Asked Questions)[\\s\\S]*?(?=^##[^#]|$)/gmi, '');\n\n  if (faq && Array.isArray(faq)) {\n    for (const item of faq) {\n      if (item.question) {\n        const escapedQ = item.question.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\n        const pattern = new RegExp(`^###\\\\s*${escapedQ}[\\\\s\\\\S]*?(?=^##|^###|$)`, 'gmi');\n        html = html.replace(pattern, '');\n      }\n    }\n  }\n\n  html = html.replace(/^###\\s*[^\\n]*\\?\\s*\\n+[^\\n#]+(?:\\n[^\\n#]+)*/gm, '');\n\n  const codeBlocks = [];\n  html = html.replace(/```([\\s\\S]*?)```/g, (match, content) => {\n    codeBlocks.push(content);\n    return `___CODEBLOCK_${codeBlocks.length - 1}___`;\n  });\n\n  const inlineCodes = [];\n  html = html.replace(/`([^`]+)`/g, (match, code) => {\n    inlineCodes.push(code);\n    return `___INLINECODE_${inlineCodes.length - 1}___`;\n  });\n\n  html = html.replace(/^##\\s*Related\\s*(Guides|guides|Articles|articles).*$/gm, '');\n  html = html.replace(/^-\\s*(How to|Understanding|Tips for|Guide to).*$/gm, '');\n  html = html.replace(/^##\\s*Internal\\s*Link\\s*Suggestions.*$/gm, '');\n  html = html.replace(/^##\\s*Source\\s*Caution\\s*Notes.*$/gm, '');\n  html = html.replace(/^-\\s*Always confirm.*$/gm, '');\n  html = html.replace(/^##\\s*(Conclusion|In Conclusion|Final Thoughts|Closing Thoughts|Wrapping Up|To Wrap Up|Summary|The Bottom Line|Key Takeaways).*$/gmi, '');\n\n  html = html.replace(/^###\\s+(.+)$/gm, '<h3 style=\"font-size:1.25rem;font-weight:600;color:#374151;margin:1.5rem 0 0.75rem 0;\">$1</h3>');\n  html = html.replace(/^##\\s+(.+)$/gm, '<h2 style=\"font-size:1.5rem;font-weight:600;color:#1e40af;margin:2rem 0 1rem 0;padding-left:12px;border-left:4px solid #3b82f6;\">$1</h2>');\n  html = html.replace(/^#\\s+(.+)$/gm, '<h1 style=\"font-size:2rem;font-weight:700;color:#1a1a1a;margin:2rem 0 1rem 0;padding-bottom:0.5rem;border-bottom:3px solid #2563eb;\">$1</h1>');\n\n  html = html.replace(/\\*\\*\\*(.+?)\\*\\*\\*/g, '<strong><em>$1</em></strong>');\n  html = html.replace(/\\*\\*(.+?)\\*\\*/g, '<strong style=\"color:#1e40af;font-weight:600;\">$1</strong>');\n  html = html.replace(/(?<!\\*)\\*([^*]+)\\*(?!\\*)/g, '<em style=\"color:#6b7280;font-style:italic;\">$1</em>');\n\n  html = html.replace(/___INLINECODE_(\\d+)___/g, (match, idx) => {\n    return `<code style=\"background:#f3f4f6;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:0.9rem;\">${inlineCodes[parseInt(idx)]}</code>`;\n  });\n\n  const lines = html.split('\\n');\n  const processedLines = [];\n  let currentListType = null;\n  let listBuffer = [];\n\n  for (let i = 0; i < lines.length; i++) {\n    const line = lines[i];\n    const trimmed = line.trim();\n\n    const ulMatch = trimmed.match(/^-\\s+(.+)$/);\n    const olMatch = trimmed.match(/^(\\d+)\\.\\s+(.+)$/);\n\n    if (ulMatch) {\n      if (currentListType === 'ol' && listBuffer.length > 0) {\n        processedLines.push(`<ol style=\"margin:1rem 0 1rem 1.5rem;padding:0;list-style:decimal;\">${listBuffer.join('')}</ol>`);\n        listBuffer = [];\n      }\n      currentListType = 'ul';\n      listBuffer.push(`<li style=\"margin:0.5rem 0;padding-left:0.5rem;color:#4b5563;\">${ulMatch[1]}</li>`);\n    } else if (olMatch) {\n      if (currentListType === 'ul' && listBuffer.length > 0) {\n        processedLines.push(`<ul style=\"margin:1rem 0 1rem 1.5rem;padding:0;list-style:disc;\">${listBuffer.join('')}</ul>`);\n        listBuffer = [];\n      }\n      currentListType = 'ol';\n      listBuffer.push(`<li style=\"margin:0.5rem 0;padding-left:0.5rem;color:#4b5563;\">${olMatch[2]}</li>`);\n    } else {\n      if (listBuffer.length > 0) {\n        if (currentListType === 'ul') {\n          processedLines.push(`<ul style=\"margin:1rem 0 1rem 1.5rem;padding:0;list-style:disc;\">${listBuffer.join('')}</ul>`);\n        } else if (currentListType === 'ol') {\n          processedLines.push(`<ol style=\"margin:1rem 0 1rem 1.5rem;padding:0;list-style:decimal;\">${listBuffer.join('')}</ol>`);\n        }\n        listBuffer = [];\n        currentListType = null;\n      }\n      processedLines.push(line);\n    }\n  }\n\n  if (listBuffer.length > 0) {\n    if (currentListType === 'ul') {\n      processedLines.push(`<ul style=\"margin:1rem 0 1rem 1.5rem;padding:0;list-style:disc;\">${listBuffer.join('')}</ul>`);\n    } else if (currentListType === 'ol') {\n      processedLines.push(`<ol style=\"margin:1rem 0 1rem 1.5rem;padding:0;list-style:decimal;\">${listBuffer.join('')}</ol>`);\n    }\n  }\n\n  html = processedLines.join('\\n');\n\n  const finalLines = html.split('\\n');\n  const paragraphProcessed = [];\n  let inParagraph = false;\n\n  for (const line of finalLines) {\n    const trimmed = line.trim();\n    if (!trimmed) {\n      if (inParagraph) {\n        paragraphProcessed.push('</p>');\n        inParagraph = false;\n      }\n      continue;\n    }\n\n    if (trimmed.startsWith('<h') || trimmed.startsWith('<ul') || trimmed.startsWith('<ol') ||\n        trimmed.startsWith('<li') || trimmed.startsWith('</') || trimmed.startsWith('<div') ||\n        trimmed.startsWith('<pre') || trimmed.startsWith('___CODEBLOCK')) {\n      if (inParagraph) {\n        paragraphProcessed.push('</p>');\n        inParagraph = false;\n      }\n      paragraphProcessed.push(trimmed);\n    } else {\n      if (!inParagraph) {\n        paragraphProcessed.push('<p style=\"font-size:1.05rem;color:#4b5563;margin:1rem 0;line-height:1.8;\">' + trimmed);\n        inParagraph = true;\n      } else {\n        paragraphProcessed.push('<br>' + trimmed);\n      }\n    }\n  }\n\n  if (inParagraph) {\n    paragraphProcessed.push('</p>');\n  }\n\n  html = paragraphProcessed.join('\\n');\n\n  codeBlocks.forEach((content, i) => {\n    html = html.replace(`___CODEBLOCK_${i}___`, `<pre style=\"background:#f3f4f6;border-radius:8px;padding:1rem;overflow-x:auto;font-family:monospace;font-size:0.9rem;border:1px solid #e5e7eb;\"><code>${content}</code></pre>`);\n  });\n\n  html = html.replace(/<p style=\"[^\"]*\"><\\/p>/g, '');\n  html = html.replace(/<ul style=\"[^\"]*\"><\\/ul>/g, '');\n  html = html.replace(/<ol style=\"[^\"]*\"><\\/ol>/g, '');\n  html = html.replace(/\\n{3,}/g, '\\n\\n');\n\n  let faqHtml = '';\n  if (faq && Array.isArray(faq) && faq.length > 0) {\n    faqHtml = `\n<div style=\"margin-top:3rem;padding:2rem;background:linear-gradient(135deg,#f0f9ff 0%,#e0f2fe 100%);border-radius:16px;\">\n  <h2 style=\"font-size:1.5rem;font-weight:600;color:#1e40af;margin:0 0 1.5rem 0;padding-left:12px;border-left:4px solid #3b82f6;\">Frequently Asked Questions</h2>\n  ${faq.map((item) => `\n  <div style=\"background:#fff;border-radius:12px;padding:1.25rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);border:1px solid #e0e7ff;\">\n    <div style=\"display:flex;align-items:flex-start;gap:12px;font-weight:600;color:#1e40af;margin-bottom:0.75rem;\">\n      <span style=\"display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;background:#3b82f6;color:#fff;border-radius:50%;font-weight:700;font-size:0.85rem;\">Q</span>\n      <span style=\"flex:1;padding-top:2px;\">${item.question || ''}</span>\n    </div>\n    <div style=\"display:flex;align-items:flex-start;gap:12px;color:#4b5563;\">\n      <span style=\"display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;background:#10b981;color:#fff;border-radius:50%;font-weight:700;font-size:0.85rem;\">A</span>\n      <span style=\"flex:1;padding-top:2px;line-height:1.6;\">${item.answer || ''}</span>\n    </div>\n  </div>`).join('')}\n</div>`;\n  }\n\n  let relatedHtml = '';\n  if (relatedArticles && Array.isArray(relatedArticles) && relatedArticles.length > 0) {\n    relatedHtml = `\n<div style=\"margin-top:3rem;padding:2rem;background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%);border-radius:16px;\">\n  <h2 style=\"font-size:1.5rem;font-weight:600;color:#92400e;margin:0 0 1.5rem 0;padding-left:12px;border-left:4px solid #f59e0b;\">Related Articles</h2>\n  <div style=\"display:flex;flex-direction:column;gap:12px;\">\n    ${relatedArticles.map((article) => `\n    <a href=\"${article.url}\" style=\"display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:12px;padding:1rem 1.25rem;text-decoration:none;color:#1e40af;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,0.06);border:1px solid #fcd34d;transition:all 0.2s ease;\">\n      <span style=\"flex:1;\">${article.title}</span>\n      <span style=\"font-size:1.25rem;color:#f59e0b;font-weight:700;\">-></span>\n    </a>`).join('')}\n  </div>\n</div>`;\n  }\n\n  const hasOfficialResources = /hikorea|1345|immigration\\s*(office|service|contact)/i.test(html);\n\n  let officialResourcesHtml = '';\n  if (!hasOfficialResources) {\n    officialResourcesHtml = `\n<div style=\"margin-top:3rem;padding:2rem;background:linear-gradient(135deg,#ecfdf5 0%,#d1fae5 100%);border-radius:16px;border:1px solid #6ee7b7;\">\n  <h2 style=\"font-size:1.5rem;font-weight:600;color:#065f46;margin:0 0 1rem 0;padding-left:12px;border-left:4px solid #10b981;\">Where to Get Official Information</h2>\n  <p style=\"font-size:1.05rem;color:#4b5563;margin:1rem 0;line-height:1.8;\">Always verify the latest requirements through official channels before proceeding:</p>\n  <ul style=\"margin:1rem 0 1rem 1.5rem;padding:0;list-style:disc;\">\n    <li style=\"margin:0.75rem 0;color:#4b5563;\"><strong style=\"color:#065f46;\">HiKorea Portal</strong> (hikorea.go.kr) - The official online platform for visa applications, extensions, and immigration status checks.</li>\n    <li style=\"margin:0.75rem 0;color:#4b5563;\"><strong style=\"color:#065f46;\">Immigration Contact Center</strong> - Call 1345 from any phone in Korea. Multilingual support available 24/7.</li>\n    <li style=\"margin:0.75rem 0;color:#4b5563;\"><strong style=\"color:#065f46;\">Local Immigration Office</strong> - Visit your nearest immigration office for in-person assistance.</li>\n  </ul>\n</div>`;\n  }\n\n  const currentDate = new Date();\n  const lastUpdated = currentDate.toLocaleDateString('en-US', {\n    year: 'numeric',\n    month: 'long',\n    day: 'numeric'\n  });\n  const currentYear = currentDate.getFullYear();\n\n  const metaBlockHtml = `\n<div style=\"background:#f9fafb;border-bottom:1px solid #e5e7eb;padding:1rem;margin-bottom:1.5rem;font-size:0.9rem;color:#6b7280;display:flex;align-items:center;gap:2rem;flex-wrap:wrap;border-radius:8px;\">\n  <span>Last updated: ${lastUpdated}</span>\n  <span style=\"color:#059669;\">Information verified for ${currentYear}</span>\n</div>`;\n\n  const finalHtml = `<div style=\"font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.8;color:#333;max-width:100%;\">\n${metaBlockHtml}\n${html}\n${officialResourcesHtml}\n${faqHtml}\n${relatedHtml}\n</div>`;\n\n  return finalHtml;\n}\n\nreturn inputItems.map((item, idx) => {\n  const src = sourceItems[idx]?.json || {};\n  const text = item.json?.choices?.[0]?.message?.content || '';\n  const qa = extractJson(text);\n\n  const rawScore = Number(qa.overall_score || 0);\n  const score = rawScore <= 10 ? rawScore * 10 : rawScore;\n  const decision = String(qa.decision || '').toLowerCase().trim();\n\n  const shouldSave = (decision === 'approve') || (decision === 'revise' && score >= 60);\n\n  const relatedArticles = sanitizeRelatedArticles(src.related_articles);\n\n  let cleanTitle = qa.final_title || '';\n  cleanTitle = cleanTitle.replace(/[:*#|\\[\\]\"'\\-\\u2013\\u2014]/g, '').replace(/\\s+/g, ' ').trim();\n\n  const bodyHtml = markdownToStyledHtml(qa.final_body_markdown || '', qa.final_faq || [], relatedArticles);\n\n  return {\n    json: {\n      ...src,\n      qa_raw: text,\n      qa_json: qa,\n      should_save: shouldSave,\n      final_title: cleanTitle,\n      final_slug: qa.final_slug,\n      final_meta_description: qa.final_meta_description,\n      final_excerpt: qa.final_excerpt,\n      final_body_markdown: qa.final_body_markdown,\n      final_body_html: bodyHtml,\n      final_faq: qa.final_faq,\n      final_internal_link_suggestions: qa.final_internal_link_suggestions,\n      qa_decision: qa.decision,\n      qa_score: qa.overall_score\n    }\n  };\n});\n"
+      },
+      "id": "fc41c04c-a346-4b38-9a60-0fe138425cec",
+      "name": "Parse QA JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -7392,
+        -768
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "should-save-check",
+              "leftValue": "={{ $json.should_save }}",
+              "rightValue": "={{ true }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "name": "filter.operator.true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3cb631be-257d-438c-bf5a-3e99ce623192",
+      "name": "IF Should Save",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -7136,
+        -768
+      ]
+    },
+    {
+      "parameters": {
+        "title": "={{$json.final_title}}",
+        "additionalFields": {
+          "content": "=<!-- wp:html -->{{$json.final_body_html}}<!-- /wp:html -->",
+          "slug": "={{$json.final_slug}}",
+          "status": "draft"
+        }
+      },
+      "id": "7d5546e7-c8e3-451d-a48f-cf70a6334500",
+      "name": "WordPress Create Draft",
+      "type": "n8n-nodes-base.wordpress",
+      "typeVersion": 1,
+      "position": [
+        -6880,
+        -864
+      ],
+      "credentials": {
+        "wordpressApi": {
+          "id": "OVzVPFgB9XvOEQA4",
+          "name": "Wordpress account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://koreayo.com/wp-json/wp/v2/posts/' + $json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wordpressApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ meta: { _yoast_wpseo_focuskw: $items('IF Should Save')[$itemIndex]?.json?.seed_keyword || '', _yoast_wpseo_metadesc: $items('IF Should Save')[$itemIndex]?.json?.final_meta_description || '' } }) }}",
+        "options": {}
+      },
+      "id": "a2e3174a-5839-49fc-817e-42923334c860",
+      "name": "Update Yoast SEO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -6720,
+        -864
+      ],
+      "credentials": {
+        "wordpressApi": {
+          "id": "OVzVPFgB9XvOEQA4",
+          "name": "Wordpress account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const wpResponse = $json;\nconst itemIndex = $itemIndex;\n\nconst originalData = $items('IF Should Save')[itemIndex]?.json || {};\n\nreturn {\n  json: {\n    ...originalData,\n    wp_id: wpResponse.id,\n    wp_link: wpResponse.link,\n    wp_guid: wpResponse.guid?.rendered || '',\n    wp_status: wpResponse.status,\n    wp_slug: wpResponse.slug\n  }\n};"
+      },
+      "id": "dd0057b4-9c3c-49d4-8d9b-984fc1bb949f",
+      "name": "Merge WP Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6560,
+        -864
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const now = new Date().toISOString();\n\nconst rowNumber = $json.row_number;\nif (rowNumber === undefined || rowNumber === null || rowNumber === '') {\n  throw new Error(`Invalid row_number: ${rowNumber}. Data flow issue detected.`);\n}\n\nreturn {\n  row_number: rowNumber,\n  topic_id: $json.topic_id || '',\n  status: 'ready',\n  retry_count: Number($json.retry_count || 0),\n  qa_score: Number($json.qa_score || 0),\n  qa_decision: $json.qa_decision || 'approve',\n  published_url: $json.wp_link || $json.wp_guid || '',\n  last_error: '',\n  next_retry_at: '',\n  note: `${$json.note || ''} | draft created`\n};"
+      },
+      "id": "7cda3d6b-a98f-41aa-ba18-e18fc0564da8",
+      "name": "Build Success Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6352,
+        -976
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {\n  topic_id: $json.topic_id || '',\n  published_url: $json.wp_link || $json.wp_guid || '',\n  published_at: new Date().toISOString(),\n  category: $json.category || '',\n  subcategory: $json.subcategory || '',\n  primary_keyword: $json.seed_keyword || '',\n  title: $json.final_title || '',\n  language: $json.language || '',\n  monetization_path: $json.monetization_path || '',\n  status_note: `Draft created. QA decision=${$json.qa_decision || 'unknown'}; score=${$json.qa_score || 0}`,\n  wp_post_id: String($json.wp_id || ''),\n  slug: $json.final_slug || ''\n};"
+      },
+      "id": "75ce31a3-30e1-4726-8c0b-049758b16810",
+      "name": "Build PUBLISHED Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6352,
+        -864
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1768774090,
+          "mode": "list",
+          "cachedResultName": "PUBLISHED",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/edit#gid=1768774090"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "topic_id",
+              "displayName": "topic_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "published_url",
+              "displayName": "published_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "published_at",
+              "displayName": "published_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "subcategory",
+              "displayName": "subcategory",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "primary_keyword",
+              "displayName": "primary_keyword",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "language",
+              "displayName": "language",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "monetization_path",
+              "displayName": "monetization_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "impressions_7d",
+              "displayName": "impressions_7d",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "clicks_7d",
+              "displayName": "clicks_7d",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ctr_7d",
+              "displayName": "ctr_7d",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "avg_position_7d",
+              "displayName": "avg_position_7d",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sessions_7d",
+              "displayName": "sessions_7d",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "engagement_time_7d",
+              "displayName": "engagement_time_7d",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "affiliate_clicks_7d",
+              "displayName": "affiliate_clicks_7d",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status_note",
+              "displayName": "status_note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "wp_post_id",
+              "displayName": "wp_post_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "slug",
+              "displayName": "slug",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED",
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "id": "26d67630-cf29-4c97-8f3d-b3497773ac4a",
+      "name": "Append PUBLISHED",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -6080,
+        -864
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MXIFz6a25EZv0J0R",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const rowNumber = $json.row_number;\nif (rowNumber === undefined || rowNumber === null || rowNumber === '') {\n  throw new Error(`Build Fail Update: row_number is missing. Available keys: ${Object.keys($json).join(', ')}`);\n}\n\nconst retryCount = Number($json.retry_count || 0) + 1;\nconst qaDecision = $json.qa_decision || 'reject';\nconst qaScore = Number($json.qa_score || 0);\nconst now = new Date().toISOString();\n\nconst nextStatus = retryCount >= 3 ? 'blocked' : 'queued';\n\nreturn {\n  row_number: rowNumber,\n  topic_id: $json.topic_id || '',\n  status: nextStatus,\n  retry_count: retryCount,\n  qa_score: qaScore,\n  qa_decision: qaDecision,\n  last_error: `QA gate failed: decision=${qaDecision}, score=${qaScore}`,\n  next_retry_at: nextStatus === 'queued' ? now : '',\n  note: `${$json.note || ''} | auto-fail handled`\n};"
+      },
+      "id": "27fc72ea-fbc7-44ab-84e3-cf60f7a0b44d",
+      "name": "Build Fail Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6880,
+        -656
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const rowNum = $json.row_number;\n  if (rowNum === undefined || rowNum === null || rowNum === '') {\n    throw new Error('row_number is missing in Reserve QUEUE Processing');\n  }\n  return JSON.stringify({\n    valueInputOption: \"USER_ENTERED\",\n    data: [\n      { range: `QUEUE!A${rowNum}`, values: [[ $json.topic_id ?? '' ]] },\n      { range: `QUEUE!B${rowNum}`, values: [[\"processing\"]] },\n      { range: `QUEUE!AB${rowNum}`, values: [[\"\"]] },\n      { range: `QUEUE!AC${rowNum}`, values: [[\"\"]] }\n    ]\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "186d13c3-857c-438e-8f4e-85570f178195",
+      "name": "Reserve QUEUE Processing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -8800,
+        -768
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MXIFz6a25EZv0J0R",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const rowNum = $json.row_number;\n  if (rowNum === undefined || rowNum === null || rowNum === '') {\n    throw new Error('row_number is missing in QUEUE Update Success API');\n  }\n  return JSON.stringify({\n    valueInputOption: \"USER_ENTERED\",\n    data: [\n      { range: `QUEUE!A${rowNum}`, values: [[ $json.topic_id ?? '' ]] },\n      { range: `QUEUE!B${rowNum}`, values: [[ $json.status ?? '' ]] },\n      { range: `QUEUE!S${rowNum}`, values: [[ $json.note ?? '' ]] },\n      { range: `QUEUE!V${rowNum}`, values: [[ $json.published_url ?? '' ]] },\n      { range: `QUEUE!X${rowNum}`, values: [[ $json.retry_count ?? 0 ]] },\n      { range: `QUEUE!Y${rowNum}`, values: [[ $json.qa_score ?? 0 ]] },\n      { range: `QUEUE!Z${rowNum}`, values: [[ $json.qa_decision ?? '' ]] },\n      { range: `QUEUE!AB${rowNum}`, values: [[ $json.last_error ?? '' ]] },\n      { range: `QUEUE!AC${rowNum}`, values: [[ $json.next_retry_at ?? '' ]] }\n    ]\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "10a42bb5-e00b-4b0d-99df-93d0d5622681",
+      "name": "QUEUE Update Success API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -6080,
+        -976
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MXIFz6a25EZv0J0R",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const rowNum = $json.row_number;\n  if (rowNum === undefined || rowNum === null || rowNum === '') {\n    throw new Error('row_number is missing in QUEUE Update Fail API');\n  }\n  return JSON.stringify({\n    valueInputOption: \"USER_ENTERED\",\n    data: [\n      { range: `QUEUE!A${rowNum}`, values: [[ $json.topic_id ?? '' ]] },\n      { range: `QUEUE!B${rowNum}`, values: [[ $json.status ?? '' ]] },\n      { range: `QUEUE!S${rowNum}`, values: [[ $json.note ?? '' ]] },\n      { range: `QUEUE!X${rowNum}`, values: [[ $json.retry_count ?? 0 ]] },\n      { range: `QUEUE!Y${rowNum}`, values: [[ $json.qa_score ?? 0 ]] },\n      { range: `QUEUE!Z${rowNum}`, values: [[ $json.qa_decision ?? '' ]] },\n      { range: `QUEUE!AB${rowNum}`, values: [[ $json.last_error ?? '' ]] },\n      { range: `QUEUE!AC${rowNum}`, values: [[ $json.next_retry_at ?? '' ]] }\n    ]\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "70a18d6c-1c0e-44c6-9627-5d11f37798f5",
+      "name": "QUEUE Update Fail API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -6608,
+        -656
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MXIFz6a25EZv0J0R",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read QUEUE",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read CONTROL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read PUBLISHED List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read QUEUE": {
+      "main": [
+        [
+          {
+            "node": "Wait for All",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read CONTROL": {
+      "main": [
+        [
+          {
+            "node": "Wait for All",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Read PUBLISHED List": {
+      "main": [
+        [
+          {
+            "node": "Wait for All",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Wait for All": {
+      "main": [
+        [
+          {
+            "node": "Prepare Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Candidates": {
+      "main": [
+        [
+          {
+            "node": "Reserve QUEUE Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reserve QUEUE Processing": {
+      "main": [
+        [
+          {
+            "node": "Build Draft Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Draft Prompt": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Draft": {
+      "main": [
+        [
+          {
+            "node": "Parse Draft JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Draft JSON": {
+      "main": [
+        [
+          {
+            "node": "Build QA Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build QA Prompt": {
+      "main": [
+        [
+          {
+            "node": "OpenAI QA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI QA": {
+      "main": [
+        [
+          {
+            "node": "Parse QA JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse QA JSON": {
+      "main": [
+        [
+          {
+            "node": "IF Should Save",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Should Save": {
+      "main": [
+        [
+          {
+            "node": "WordPress Create Draft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Fail Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WordPress Create Draft": {
+      "main": [
+        [
+          {
+            "node": "Update Yoast SEO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Yoast SEO": {
+      "main": [
+        [
+          {
+            "node": "Merge WP Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge WP Result": {
+      "main": [
+        [
+          {
+            "node": "Build Success Update",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build PUBLISHED Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Success Update": {
+      "main": [
+        [
+          {
+            "node": "QUEUE Update Success API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build PUBLISHED Row": {
+      "main": [
+        [
+          {
+            "node": "Append PUBLISHED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Fail Update": {
+      "main": [
+        [
+          {
+            "node": "QUEUE Update Fail API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "active": true
+}
