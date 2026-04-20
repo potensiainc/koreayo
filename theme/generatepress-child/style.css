@@ -1,0 +1,925 @@
+/*
+ Theme Name: Koreayo Theme
+ Theme URI: https://koreayo.com
+ Author: Koreayo Team
+ Author URI: https://koreayo.com
+ Description: Koreayo - Practical guides for foreigners living in Korea. Built on GeneratePress.
+ Template: generatepress
+ Version: 1.0.0
+ Requires at least: 5.0
+ Tested up to: 6.4
+ Requires PHP: 7.4
+ License: GNU General Public License v2 or later
+ License URI: http://www.gnu.org/licenses/gpl-2.0.html
+ Text Domain: koreayo
+*/
+
+/* ============================================
+   CSS Variables (Design Tokens)
+   ============================================ */
+:root {
+  /* Brand Colors - Koreayo Blue */
+  --koreayo-primary: #2563EB;
+  --koreayo-primary-dark: #1e40af;
+  --koreayo-primary-light: #3b82f6;
+  --koreayo-accent: #10b981;
+  --koreayo-accent-light: #34d399;
+
+  /* Neutral Colors */
+  --koreayo-white: #ffffff;
+  --koreayo-gray-50: #f9fafb;
+  --koreayo-gray-100: #f3f4f6;
+  --koreayo-gray-200: #e5e7eb;
+  --koreayo-gray-300: #d1d5db;
+  --koreayo-gray-400: #9ca3af;
+  --koreayo-gray-500: #6b7280;
+  --koreayo-gray-600: #4b5563;
+  --koreayo-gray-700: #374151;
+  --koreayo-gray-800: #1f2937;
+  --koreayo-gray-900: #111827;
+
+  /* Spacing */
+  --koreayo-spacing-1: 0.25rem;
+  --koreayo-spacing-2: 0.5rem;
+  --koreayo-spacing-3: 0.75rem;
+  --koreayo-spacing-4: 1rem;
+  --koreayo-spacing-5: 1.25rem;
+  --koreayo-spacing-6: 1.5rem;
+  --koreayo-spacing-8: 2rem;
+  --koreayo-spacing-10: 2.5rem;
+  --koreayo-spacing-12: 3rem;
+
+  /* Border Radius */
+  --koreayo-radius-sm: 0.25rem;
+  --koreayo-radius-md: 0.5rem;
+  --koreayo-radius-lg: 0.75rem;
+  --koreayo-radius-xl: 1rem;
+  --koreayo-radius-full: 9999px;
+
+  /* Shadows */
+  --koreayo-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --koreayo-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --koreayo-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+  /* Transitions */
+  --koreayo-transition-fast: 150ms ease;
+  --koreayo-transition-base: 200ms ease;
+}
+
+/* ============================================
+   Typography
+   ============================================ */
+body {
+  font-family: 'Inter', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.8;
+  color: var(--koreayo-gray-800);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6,
+.entry-title,
+.archive-title,
+.page-title {
+  font-family: 'Inter', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--koreayo-gray-900);
+}
+
+/* ============================================
+   Header Styling
+   ============================================ */
+.site-header {
+  background: var(--koreayo-white);
+  border-bottom: 1px solid var(--koreayo-gray-200);
+  box-shadow: var(--koreayo-shadow-sm);
+}
+
+.main-title a,
+.site-title a {
+  color: var(--koreayo-gray-900);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.main-title a:hover,
+.site-title a:hover {
+  color: var(--koreayo-primary);
+}
+
+/* Navigation */
+.main-navigation a,
+.menu-toggle,
+.main-nav .menu > li > a {
+  color: var(--koreayo-gray-600);
+  font-weight: 500;
+  font-size: 0.9375rem;
+  transition: color var(--koreayo-transition-fast);
+}
+
+.main-navigation a:hover,
+.main-nav .menu > li > a:hover {
+  color: var(--koreayo-primary);
+}
+
+.main-navigation .current-menu-item > a,
+.main-navigation .current-menu-ancestor > a {
+  color: var(--koreayo-primary);
+  font-weight: 600;
+}
+
+/* Dropdown Menu */
+.main-navigation ul ul {
+  background: var(--koreayo-white);
+  border: 1px solid var(--koreayo-gray-200);
+  border-radius: var(--koreayo-radius-lg);
+  box-shadow: var(--koreayo-shadow-lg);
+}
+
+.main-navigation ul ul a {
+  padding: var(--koreayo-spacing-3) var(--koreayo-spacing-5);
+  font-size: 0.875rem;
+}
+
+.main-navigation ul ul a:hover {
+  background: var(--koreayo-gray-50);
+  color: var(--koreayo-primary);
+}
+
+/* ============================================
+   Content Area
+   ============================================ */
+.site-content {
+  padding-top: var(--koreayo-spacing-8);
+  padding-bottom: var(--koreayo-spacing-12);
+}
+
+.inside-article {
+  padding: var(--koreayo-spacing-8);
+  background: var(--koreayo-white);
+  border-radius: var(--koreayo-radius-lg);
+  border: 1px solid var(--koreayo-gray-200);
+}
+
+/* Entry Header */
+.entry-header {
+  margin-bottom: var(--koreayo-spacing-6);
+}
+
+.entry-title {
+  font-size: 2rem;
+  margin-bottom: var(--koreayo-spacing-4);
+}
+
+.entry-title a {
+  color: var(--koreayo-gray-900);
+  text-decoration: none;
+  transition: color var(--koreayo-transition-fast);
+}
+
+.entry-title a:hover {
+  color: var(--koreayo-primary);
+}
+
+/* Entry Meta */
+.entry-meta {
+  font-size: 0.875rem;
+  color: var(--koreayo-gray-500);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--koreayo-spacing-4);
+}
+
+.entry-meta a {
+  color: var(--koreayo-gray-600);
+  text-decoration: none;
+}
+
+.entry-meta a:hover {
+  color: var(--koreayo-primary);
+}
+
+/* Category Badge */
+.cat-links a {
+  display: inline-block;
+  padding: var(--koreayo-spacing-1) var(--koreayo-spacing-3);
+  background: var(--koreayo-primary);
+  color: var(--koreayo-white) !important;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  border-radius: var(--koreayo-radius-sm);
+  transition: background var(--koreayo-transition-fast);
+}
+
+.cat-links a:hover {
+  background: var(--koreayo-primary-dark);
+}
+
+/* ============================================
+   Content Typography
+   ============================================ */
+.entry-content {
+  font-size: 1.0625rem;
+  line-height: 1.85;
+  color: var(--koreayo-gray-700);
+}
+
+.entry-content p {
+  margin-bottom: 1.5em;
+}
+
+.entry-content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--koreayo-gray-900);
+  margin-top: 2.5em;
+  margin-bottom: 0.75em;
+  padding-left: var(--koreayo-spacing-4);
+  border-left: 4px solid var(--koreayo-primary);
+}
+
+.entry-content h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--koreayo-gray-800);
+  margin-top: 2em;
+  margin-bottom: 0.5em;
+}
+
+.entry-content h4 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--koreayo-gray-800);
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+/* Links */
+.entry-content a {
+  color: var(--koreayo-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--koreayo-transition-fast);
+}
+
+.entry-content a:hover {
+  color: var(--koreayo-primary-dark);
+}
+
+/* Lists */
+.entry-content ul,
+.entry-content ol {
+  margin: 1.5em 0;
+  padding: var(--koreayo-spacing-5) var(--koreayo-spacing-6);
+  padding-left: 2.5rem;
+  background: var(--koreayo-gray-50);
+  border-radius: var(--koreayo-radius-lg);
+  border-left: 4px solid var(--koreayo-primary-light);
+}
+
+.entry-content ul {
+  list-style: disc;
+}
+
+.entry-content ol {
+  list-style: decimal;
+}
+
+.entry-content li {
+  margin-bottom: 0.5em;
+  padding-left: 0.5em;
+}
+
+.entry-content li::marker {
+  color: var(--koreayo-primary);
+}
+
+/* Nested Lists */
+.entry-content ul ul,
+.entry-content ol ol,
+.entry-content ul ol,
+.entry-content ol ul {
+  margin: 0.5em 0;
+  padding: 0;
+  padding-left: 1.5em;
+  background: transparent;
+  border: none;
+}
+
+/* Blockquotes */
+.entry-content blockquote,
+.wp-block-quote {
+  background: linear-gradient(135deg, #eef6ff 0%, #f0f9ff 100%);
+  border-left: 4px solid var(--koreayo-primary);
+  padding: var(--koreayo-spacing-5) var(--koreayo-spacing-6);
+  margin: 2em 0;
+  border-radius: 0 var(--koreayo-radius-lg) var(--koreayo-radius-lg) 0;
+  font-style: normal;
+  color: var(--koreayo-gray-700);
+}
+
+.entry-content blockquote p:last-child,
+.wp-block-quote p:last-child {
+  margin-bottom: 0;
+}
+
+/* Images */
+.entry-content img {
+  border-radius: var(--koreayo-radius-lg);
+  box-shadow: var(--koreayo-shadow-sm);
+}
+
+.wp-block-image figcaption,
+.entry-content figcaption {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--koreayo-gray-500);
+  margin-top: var(--koreayo-spacing-2);
+}
+
+/* Tables */
+.entry-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  font-size: 0.9375rem;
+  border-radius: var(--koreayo-radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--koreayo-gray-200);
+}
+
+.entry-content th,
+.entry-content td {
+  padding: var(--koreayo-spacing-3) var(--koreayo-spacing-4);
+  text-align: left;
+  border-bottom: 1px solid var(--koreayo-gray-200);
+}
+
+.entry-content th {
+  background: var(--koreayo-gray-50);
+  font-weight: 600;
+  color: var(--koreayo-gray-900);
+}
+
+.entry-content tr:last-child td {
+  border-bottom: none;
+}
+
+.entry-content tr:hover td {
+  background: var(--koreayo-gray-50);
+}
+
+/* Code */
+.entry-content code {
+  background: var(--koreayo-gray-100);
+  padding: 0.125em 0.375em;
+  border-radius: var(--koreayo-radius-sm);
+  font-size: 0.875em;
+  color: var(--koreayo-primary-dark);
+}
+
+.entry-content pre {
+  background: var(--koreayo-gray-900);
+  color: var(--koreayo-gray-100);
+  padding: var(--koreayo-spacing-5);
+  border-radius: var(--koreayo-radius-lg);
+  overflow-x: auto;
+  margin: 1.5em 0;
+}
+
+.entry-content pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+/* ============================================
+   Buttons
+   ============================================ */
+button,
+.button,
+input[type="submit"],
+.wp-block-button__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--koreayo-spacing-2);
+  padding: var(--koreayo-spacing-3) var(--koreayo-spacing-6);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: var(--koreayo-radius-md);
+  background: var(--koreayo-primary);
+  color: var(--koreayo-white) !important;
+  border: none;
+  cursor: pointer;
+  transition: all var(--koreayo-transition-fast);
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+button:hover,
+.button:hover,
+input[type="submit"]:hover,
+.wp-block-button__link:hover {
+  background: var(--koreayo-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.25);
+}
+
+/* Outline Button */
+.wp-block-button.is-style-outline .wp-block-button__link {
+  background: transparent;
+  border: 2px solid var(--koreayo-primary);
+  color: var(--koreayo-primary) !important;
+  box-shadow: none;
+}
+
+.wp-block-button.is-style-outline .wp-block-button__link:hover {
+  background: var(--koreayo-primary);
+  color: var(--koreayo-white) !important;
+}
+
+/* ============================================
+   Featured Image
+   ============================================ */
+.post-image {
+  margin-bottom: var(--koreayo-spacing-6);
+  border-radius: var(--koreayo-radius-lg);
+  overflow: hidden;
+}
+
+.post-image img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ============================================
+   Archive / Blog Listing
+   ============================================ */
+.generate-columns-container article,
+.blog article.post {
+  background: var(--koreayo-white);
+  border: 1px solid var(--koreayo-gray-200);
+  border-radius: var(--koreayo-radius-lg);
+  overflow: hidden;
+  transition: all var(--koreayo-transition-base);
+}
+
+.generate-columns-container article:hover,
+.blog article.post:hover {
+  box-shadow: var(--koreayo-shadow-lg);
+  border-color: var(--koreayo-gray-300);
+  transform: translateY(-2px);
+}
+
+.generate-columns-container .inside-article {
+  padding: var(--koreayo-spacing-5);
+  border: none;
+}
+
+/* Archive Header */
+.page-header,
+.archive-header {
+  margin-bottom: var(--koreayo-spacing-8);
+  padding: var(--koreayo-spacing-8);
+  background: linear-gradient(135deg, var(--koreayo-primary) 0%, var(--koreayo-primary-dark) 100%);
+  border-radius: var(--koreayo-radius-lg);
+  color: var(--koreayo-white);
+}
+
+.page-header .page-title,
+.archive-header .archive-title {
+  color: var(--koreayo-white);
+  margin: 0;
+}
+
+.archive-description {
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: var(--koreayo-spacing-3);
+}
+
+/* ============================================
+   Pagination
+   ============================================ */
+.pagination,
+.paging-navigation {
+  margin-top: var(--koreayo-spacing-10);
+  display: flex;
+  justify-content: center;
+}
+
+.pagination .nav-links,
+.paging-navigation .nav-links {
+  display: flex;
+  align-items: center;
+  gap: var(--koreayo-spacing-2);
+}
+
+.pagination a,
+.pagination span,
+.paging-navigation a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 var(--koreayo-spacing-3);
+  border-radius: var(--koreayo-radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all var(--koreayo-transition-fast);
+  text-decoration: none;
+}
+
+.pagination a,
+.paging-navigation a {
+  background: var(--koreayo-white);
+  border: 1px solid var(--koreayo-gray-200);
+  color: var(--koreayo-gray-700);
+}
+
+.pagination a:hover,
+.paging-navigation a:hover {
+  background: var(--koreayo-primary);
+  border-color: var(--koreayo-primary);
+  color: var(--koreayo-white);
+}
+
+.pagination .current {
+  background: var(--koreayo-primary);
+  color: var(--koreayo-white);
+  border: 1px solid var(--koreayo-primary);
+}
+
+/* ============================================
+   Sidebar
+   ============================================ */
+.widget-area .widget {
+  margin-bottom: var(--koreayo-spacing-6);
+  padding: var(--koreayo-spacing-5);
+  background: var(--koreayo-white);
+  border: 1px solid var(--koreayo-gray-200);
+  border-radius: var(--koreayo-radius-lg);
+}
+
+.widget-area .widget-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--koreayo-gray-900);
+  margin-bottom: var(--koreayo-spacing-4);
+  padding-bottom: var(--koreayo-spacing-3);
+  border-bottom: 2px solid var(--koreayo-primary);
+}
+
+.widget-area ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.widget-area li {
+  padding: var(--koreayo-spacing-2) 0;
+  border-bottom: 1px solid var(--koreayo-gray-100);
+}
+
+.widget-area li:last-child {
+  border-bottom: none;
+}
+
+.widget-area a {
+  color: var(--koreayo-gray-700);
+  text-decoration: none;
+  transition: color var(--koreayo-transition-fast);
+}
+
+.widget-area a:hover {
+  color: var(--koreayo-primary);
+}
+
+/* ============================================
+   Footer
+   ============================================ */
+.site-footer {
+  background: var(--koreayo-gray-900);
+  color: var(--koreayo-gray-400);
+}
+
+.site-info {
+  padding: var(--koreayo-spacing-8) 0;
+  text-align: center;
+}
+
+.site-footer a {
+  color: var(--koreayo-gray-400);
+  text-decoration: none;
+  transition: color var(--koreayo-transition-fast);
+}
+
+.site-footer a:hover {
+  color: var(--koreayo-white);
+}
+
+/* Footer Widgets */
+.footer-widgets {
+  padding: var(--koreayo-spacing-12) 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.footer-widgets .widget-title {
+  color: var(--koreayo-white);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--koreayo-spacing-4);
+  border-bottom: none;
+}
+
+.footer-widgets a {
+  color: var(--koreayo-gray-400);
+}
+
+.footer-widgets a:hover {
+  color: var(--koreayo-white);
+}
+
+/* ============================================
+   Comments
+   ============================================ */
+#comments {
+  margin-top: var(--koreayo-spacing-10);
+  padding-top: var(--koreayo-spacing-8);
+  border-top: 1px solid var(--koreayo-gray-200);
+}
+
+.comments-title {
+  font-size: 1.25rem;
+  margin-bottom: var(--koreayo-spacing-6);
+}
+
+.comment-list {
+  list-style: none;
+  padding: 0;
+}
+
+.comment-body {
+  padding: var(--koreayo-spacing-5);
+  background: var(--koreayo-gray-50);
+  border-radius: var(--koreayo-radius-lg);
+  margin-bottom: var(--koreayo-spacing-4);
+}
+
+.comment-author {
+  font-weight: 600;
+  color: var(--koreayo-gray-900);
+}
+
+.comment-meta {
+  font-size: 0.875rem;
+  color: var(--koreayo-gray-500);
+  margin-bottom: var(--koreayo-spacing-3);
+}
+
+.comment-content {
+  color: var(--koreayo-gray-700);
+}
+
+/* Comment Form */
+.comment-form label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: var(--koreayo-spacing-2);
+  color: var(--koreayo-gray-700);
+}
+
+.comment-form input[type="text"],
+.comment-form input[type="email"],
+.comment-form input[type="url"],
+.comment-form textarea {
+  width: 100%;
+  padding: var(--koreayo-spacing-3) var(--koreayo-spacing-4);
+  border: 1px solid var(--koreayo-gray-300);
+  border-radius: var(--koreayo-radius-md);
+  font-size: 1rem;
+  transition: border-color var(--koreayo-transition-fast);
+}
+
+.comment-form input:focus,
+.comment-form textarea:focus {
+  outline: none;
+  border-color: var(--koreayo-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* ============================================
+   Search Form
+   ============================================ */
+.search-form {
+  display: flex;
+  gap: var(--koreayo-spacing-2);
+}
+
+.search-field {
+  flex: 1;
+  padding: var(--koreayo-spacing-3) var(--koreayo-spacing-4);
+  border: 1px solid var(--koreayo-gray-300);
+  border-radius: var(--koreayo-radius-md);
+  font-size: 1rem;
+  transition: border-color var(--koreayo-transition-fast);
+}
+
+.search-field:focus {
+  outline: none;
+  border-color: var(--koreayo-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.search-submit {
+  padding: var(--koreayo-spacing-3) var(--koreayo-spacing-5);
+}
+
+/* ============================================
+   404 Page
+   ============================================ */
+.error-404 .inside-article {
+  text-align: center;
+  padding: var(--koreayo-spacing-16) var(--koreayo-spacing-8);
+}
+
+.error-404 .entry-title {
+  font-size: 2.5rem;
+  color: var(--koreayo-gray-900);
+}
+
+.error-404 .entry-content {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+/* ============================================
+   Post Navigation
+   ============================================ */
+.post-navigation {
+  margin-top: var(--koreayo-spacing-10);
+  padding-top: var(--koreayo-spacing-8);
+  border-top: 1px solid var(--koreayo-gray-200);
+}
+
+.post-navigation .nav-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--koreayo-spacing-6);
+}
+
+.post-navigation .nav-previous,
+.post-navigation .nav-next {
+  padding: var(--koreayo-spacing-4);
+  background: var(--koreayo-gray-50);
+  border-radius: var(--koreayo-radius-lg);
+  transition: background var(--koreayo-transition-fast);
+}
+
+.post-navigation .nav-previous:hover,
+.post-navigation .nav-next:hover {
+  background: var(--koreayo-gray-100);
+}
+
+.post-navigation a {
+  color: var(--koreayo-gray-700);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.post-navigation a:hover {
+  color: var(--koreayo-primary);
+}
+
+/* ============================================
+   FAQ / Accordion (Details/Summary)
+   ============================================ */
+details {
+  background: var(--koreayo-gray-50);
+  border: 1px solid var(--koreayo-gray-200);
+  border-radius: var(--koreayo-radius-lg);
+  margin: 1em 0;
+  overflow: hidden;
+}
+
+summary {
+  font-weight: 600;
+  color: var(--koreayo-gray-900);
+  cursor: pointer;
+  padding: var(--koreayo-spacing-4) var(--koreayo-spacing-5);
+  background: var(--koreayo-white);
+  transition: background var(--koreayo-transition-fast);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+summary::after {
+  content: "+";
+  font-size: 1.25rem;
+  color: var(--koreayo-primary);
+  font-weight: 400;
+}
+
+details[open] summary::after {
+  content: "−";
+}
+
+summary:hover {
+  background: var(--koreayo-gray-50);
+}
+
+details[open] summary {
+  border-bottom: 1px solid var(--koreayo-gray-200);
+}
+
+details > *:not(summary) {
+  padding: var(--koreayo-spacing-4) var(--koreayo-spacing-5);
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+@media (max-width: 1024px) {
+  .inside-article {
+    padding: var(--koreayo-spacing-6);
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    font-size: 1rem;
+  }
+
+  .entry-title {
+    font-size: 1.5rem;
+  }
+
+  .entry-content h2 {
+    font-size: 1.25rem;
+  }
+
+  .entry-content h3 {
+    font-size: 1.125rem;
+  }
+
+  .inside-article {
+    padding: var(--koreayo-spacing-4);
+  }
+
+  .page-header,
+  .archive-header {
+    padding: var(--koreayo-spacing-6);
+  }
+
+  .post-navigation .nav-links {
+    grid-template-columns: 1fr;
+  }
+
+  .search-form {
+    flex-direction: column;
+  }
+
+  .search-submit {
+    width: 100%;
+  }
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+@media print {
+  .site-header,
+  .site-footer,
+  .widget-area,
+  .post-navigation,
+  #comments,
+  .pagination {
+    display: none;
+  }
+
+  body {
+    font-size: 12pt;
+    color: #000;
+  }
+
+  a {
+    color: #000;
+  }
+
+  .inside-article {
+    border: none;
+    padding: 0;
+  }
+}
