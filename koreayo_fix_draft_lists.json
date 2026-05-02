@@ -1,0 +1,193 @@
+{
+  "name": "Koreayo Fix Draft Lists - One Time",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-800, 0],
+      "id": "manual-trigger",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://koreayo.com/wp-json/wp/v2/posts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wordpressApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {"name": "status", "value": "draft"},
+            {"name": "per_page", "value": "100"},
+            {"name": "context", "value": "edit"}
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-drafts",
+      "name": "Fetch All Drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-560, 0],
+      "credentials": {"wordpressApi": {"id": "OVzVPFgB9XvOEQA4", "name": "Wordpress account"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const post = $json;\n\n// 디버깅: 실제 데이터 구조 확인\nconst contentRaw = post.content?.raw || '';\nconst contentRendered = post.content?.rendered || '';\nconst contentDirect = post.content || '';\nconst title = post.title?.raw || post.title?.rendered || post.title || '';\n\n// 가능한 모든 콘텐츠 소스 시도\nlet content = contentRaw || contentRendered;\nif (!content && typeof contentDirect === 'string') {\n  content = contentDirect;\n}\n\n// 디버깅 정보 포함하여 무조건 통과\nreturn { json: { skip: false, id: post.id, title: title, content: content, debug: { hasRaw: !!contentRaw, hasRendered: !!contentRendered, contentLength: content.length, contentType: typeof post.content } } };"
+      },
+      "id": "check-needs-fix",
+      "name": "Check If Needs Fix",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2},
+          "conditions": [{"id": "check-skip", "leftValue": "={{ true }}", "rightValue": "={{ true }}", "operator": {"type": "boolean", "operation": "true"}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-needs-fix",
+      "name": "IF Needs Fix",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-80, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\n\nconst systemPrompt = `You are an HTML formatting specialist. Your task is to fix broken list formatting in HTML content.\n\nPROBLEM:\nSome content has lists incorrectly formatted as inline text with dashes (–, —, -) instead of proper HTML lists.\n\nExample of BROKEN format:\n\"Hospital Mobile Apps: – Samsung Medical Center app – Asan Medical Center app – Severance Hospital app\"\n\nExample of CORRECT format:\n\"<p>Hospital Mobile Apps:</p>\\n<ul>\\n<li>Samsung Medical Center app</li>\\n<li>Asan Medical Center app</li>\\n<li>Severance Hospital app</li>\\n</ul>\"\n\nAnother BROKEN example:\n\"By Hospital Type: – University hospitals: 20,000-50,000 KRW – General hospitals: 15,000-30,000 KRW\"\n\nCORRECT format:\n\"<p>By Hospital Type:</p>\\n<ul>\\n<li><strong>University hospitals:</strong> 20,000-50,000 KRW</li>\\n<li><strong>General hospitals:</strong> 15,000-30,000 KRW</li>\\n</ul>\"\n\nRULES:\n1. Find ALL dash-separated inline lists and convert to proper <ul><li> HTML\n2. Look for patterns like: \"Category: – item1 – item2 – item3\"\n3. Also look for: \"item1 – item2 – item3\" without a header\n4. Keep all other content exactly the same\n5. Preserve existing HTML tags (h2, h3, p, a, strong, etc.)\n6. Do NOT change any text content, only restructure lists\n7. If NO lists need fixing, set needs_fix to false\n\nOutput JSON only:\n{ \"needs_fix\": true/false, \"fixed_content\": \"<corrected HTML here or empty if no fix needed>\", \"lists_fixed\": <number of lists converted> }`;\n\nconst userPrompt = `Analyze and fix the list formatting in this HTML content if needed:\n\n${data.content}\n\nIf there are dash-separated inline lists (using –, —, or -), convert them to proper <ul><li> format. If the content already has proper HTML lists or no lists to fix, set needs_fix to false. Output JSON only.`;\n\nreturn [{ json: { ...data, ai_system_prompt: systemPrompt, ai_user_prompt: userPrompt } }];"
+      },
+      "id": "build-fix-prompt",
+      "name": "Build Fix Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [160, -80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "Bearer YOUR_OPENAI_API_KEY"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"gpt-4o-mini\", temperature: 0.1, response_format: { type: \"json_object\" }, messages: [{ role: \"system\", content: $json.ai_system_prompt }, { role: \"user\", content: $json.ai_user_prompt }] }) }}",
+        "options": {"timeout": 120000}
+      },
+      "id": "openai-fix",
+      "name": "OpenAI Fix Lists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [400, -80]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const sourceData = $items('Build Fix Prompt')[$itemIndex]?.json || {};\nconst aiResponse = $json;\n\nfunction extractJson(text) {\n  const cleaned = String(text || '').replace(/^```json\\s*/i, '').replace(/```$/i, '').trim();\n  const first = cleaned.indexOf('{');\n  const last = cleaned.lastIndexOf('}');\n  if (first === -1 || last === -1) throw new Error('No JSON found');\n  return JSON.parse(cleaned.slice(first, last + 1));\n}\n\ntry {\n  const result = extractJson(aiResponse.choices?.[0]?.message?.content || '');\n  \n  // AI가 수정 불필요하다고 판단하면 스킵\n  if (!result.needs_fix || !result.fixed_content) {\n    return { json: { skip: true, reason: 'AI determined no fix needed', id: sourceData.id, title: sourceData.title, lists_fixed: 0 } };\n  }\n  \n  // 수정 필요한 경우 skip: false 명시적으로 설정\n  return { json: { skip: false, id: sourceData.id, title: sourceData.title, fixed_content: result.fixed_content, lists_fixed: result.lists_fixed || 0 } };\n} catch (e) {\n  return { json: { skip: true, error: e.message, id: sourceData.id, title: sourceData.title } };\n}"
+      },
+      "id": "parse-fix-response",
+      "name": "Parse Fix Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, -80]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2},
+          "conditions": [{"id": "has-content", "leftValue": "={{ $json.fixed_content }}", "rightValue": "", "operator": {"type": "string", "operation": "exists"}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-fixed",
+      "name": "IF Has Fixed Content",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, -80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://koreayo.com/wp-json/wp/v2/posts/' + $json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wordpressApi",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.fixed_content }) }}",
+        "options": {}
+      },
+      "id": "update-post",
+      "name": "Update Post Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, -160],
+      "credentials": {"wordpressApi": {"id": "OVzVPFgB9XvOEQA4", "name": "Wordpress account"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const updateResult = $json;\nconst fixData = $items('IF Has Fixed Content')[$itemIndex]?.json || {};\n\nreturn { json: { status: 'updated', id: fixData.id, title: fixData.title, lists_fixed: fixData.lists_fixed, wp_status: updateResult.status } };"
+      },
+      "id": "log-success",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1360, -160]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {"__rl": true, "value": "#koreayobot", "mode": "name"},
+        "text": "=:white_check_mark: *임시글 리스트 수정 완료*\n\n*제목:* {{ $json.title }}\n*수정된 리스트 수:* {{ $json.lists_fixed }}개",
+        "otherOptions": {}
+      },
+      "id": "slack-success",
+      "name": "Slack Success",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1600, -160],
+      "credentials": {"slackApi": {"id": "SLACK_CREDENTIAL_ID", "name": "Slack account"}},
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { status: 'skipped', reason: $json.reason || $json.error || 'No fix needed', id: $json.id, title: $json.title } };"
+      },
+      "id": "log-skipped",
+      "name": "Log Skipped",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [160, 80]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {"main": [[{"node": "Fetch All Drafts", "type": "main", "index": 0}]]},
+    "Fetch All Drafts": {"main": [[{"node": "Check If Needs Fix", "type": "main", "index": 0}]]},
+    "Check If Needs Fix": {"main": [[{"node": "IF Needs Fix", "type": "main", "index": 0}]]},
+    "IF Needs Fix": {"main": [[{"node": "Build Fix Prompt", "type": "main", "index": 0}], [{"node": "Log Skipped", "type": "main", "index": 0}]]},
+    "Build Fix Prompt": {"main": [[{"node": "OpenAI Fix Lists", "type": "main", "index": 0}]]},
+    "OpenAI Fix Lists": {"main": [[{"node": "Parse Fix Response", "type": "main", "index": 0}]]},
+    "Parse Fix Response": {"main": [[{"node": "IF Has Fixed Content", "type": "main", "index": 0}]]},
+    "IF Has Fixed Content": {"main": [[{"node": "Update Post Content", "type": "main", "index": 0}], [{"node": "Log Skipped", "type": "main", "index": 0}]]},
+    "Update Post Content": {"main": [[{"node": "Log Success", "type": "main", "index": 0}]]},
+    "Log Success": {"main": [[{"node": "Slack Success", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "staticData": null,
+  "pinData": {},
+  "active": false
+}

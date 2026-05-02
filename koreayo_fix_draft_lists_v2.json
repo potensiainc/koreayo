@@ -1,0 +1,173 @@
+{
+  "name": "Koreayo Fix Draft Lists v2 - Simple",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-400, 0],
+      "id": "manual-trigger",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://koreayo.com/wp-json/wp/v2/posts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wordpressApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {"name": "status", "value": "draft"},
+            {"name": "per_page", "value": "100"},
+            {"name": "context", "value": "edit"}
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          },
+          "splitIntoItems": true
+        }
+      },
+      "id": "fetch-drafts",
+      "name": "Fetch All Drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-160, 0],
+      "credentials": {"wordpressApi": {"id": "OVzVPFgB9XvOEQA4", "name": "Wordpress account"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const post = $json;\nconst content = post.content?.raw || post.content?.rendered || '';\nconst title = post.title?.raw || post.title?.rendered || '';\n\nif (!content || content.length < 50) {\n  return { json: { process: false, id: post.id, title: title, reason: 'Empty content' } };\n}\n\nreturn { json: { process: true, id: post.id, title: title, content: content } };"
+      },
+      "id": "prepare-data",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [80, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2},
+          "conditions": [{"id": "check-process", "leftValue": "={{ $json.process }}", "rightValue": "={{ true }}", "operator": {"type": "boolean", "operation": "true"}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-process",
+      "name": "IF Process",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [320, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "Bearer YOUR_OPENAI_API_KEY"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.1, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'You are an HTML formatter. Fix inline lists that should be proper HTML lists.\\n\\nPROBLEM PATTERNS TO FIX:\\n1. Numbered inline: \"1. item 2. item 3. item\" on same line\\n2. Dash inline: \"– item – item – item\" or \"- item - item\"\\n3. Mixed: \"Category: – item1 – item2\"\\n\\nCONVERT TO:\\n- Numbered lists: <ol><li>item</li></ol>\\n- Bullet lists: <ul><li>item</li></ul>\\n\\nRULES:\\n- Keep ALL existing HTML tags\\n- Only restructure inline lists into proper HTML lists\\n- Preserve all text content exactly\\n- Add line breaks between list items\\n\\nOutput JSON: { \"fixed_content\": \"<full HTML>\", \"changes_made\": number }' }, { role: 'user', content: 'Fix all inline lists in this HTML:\\n\\n' + $json.content }] }) }}",
+        "options": {"timeout": 180000}
+      },
+      "id": "openai-fix",
+      "name": "OpenAI Fix",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [560, -80]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const prepData = $items('IF Process')[$itemIndex]?.json || {};\nconst response = $json;\n\ntry {\n  let text = response.choices?.[0]?.message?.content || '';\n  text = text.replace(/^```json\\s*/i, '').replace(/```$/i, '').trim();\n  \n  const first = text.indexOf('{');\n  const last = text.lastIndexOf('}');\n  if (first === -1 || last === -1) throw new Error('No JSON');\n  \n  const result = JSON.parse(text.slice(first, last + 1));\n  \n  if (!result.fixed_content) {\n    return { json: { update: false, id: prepData.id, title: prepData.title, reason: 'No fixed_content' } };\n  }\n  \n  return { json: { update: true, id: prepData.id, title: prepData.title, fixed_content: result.fixed_content, changes: result.changes_made || 0 } };\n} catch (e) {\n  return { json: { update: false, id: prepData.id, title: prepData.title, reason: 'Parse error: ' + e.message } };\n}"
+      },
+      "id": "parse-response",
+      "name": "Parse Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, -80]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2},
+          "conditions": [{"id": "check-update", "leftValue": "={{ $json.update }}", "rightValue": "={{ true }}", "operator": {"type": "boolean", "operation": "true"}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-update",
+      "name": "IF Update",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1040, -80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://koreayo.com/wp-json/wp/v2/posts/' + $json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wordpressApi",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.fixed_content }) }}",
+        "options": {}
+      },
+      "id": "update-wordpress",
+      "name": "Update WordPress",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1280, -160],
+      "credentials": {"wordpressApi": {"id": "OVzVPFgB9XvOEQA4", "name": "Wordpress account"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const wpResult = $json;\nconst parseData = $items('IF Update')[$itemIndex]?.json || {};\n\nreturn { json: { status: 'SUCCESS', id: parseData.id, title: parseData.title, changes: parseData.changes, wp_modified: wpResult.modified } };"
+      },
+      "id": "log-success",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, -160]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { status: 'SKIPPED', id: $json.id, title: $json.title, reason: $json.reason || 'Not processed' } };"
+      },
+      "id": "log-skipped",
+      "name": "Log Skipped",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [560, 80]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {"main": [[{"node": "Fetch All Drafts", "type": "main", "index": 0}]]},
+    "Fetch All Drafts": {"main": [[{"node": "Prepare Data", "type": "main", "index": 0}]]},
+    "Prepare Data": {"main": [[{"node": "IF Process", "type": "main", "index": 0}]]},
+    "IF Process": {"main": [[{"node": "OpenAI Fix", "type": "main", "index": 0}], [{"node": "Log Skipped", "type": "main", "index": 0}]]},
+    "OpenAI Fix": {"main": [[{"node": "Parse Response", "type": "main", "index": 0}]]},
+    "Parse Response": {"main": [[{"node": "IF Update", "type": "main", "index": 0}]]},
+    "IF Update": {"main": [[{"node": "Update WordPress", "type": "main", "index": 0}], [{"node": "Log Skipped", "type": "main", "index": 0}]]},
+    "Update WordPress": {"main": [[{"node": "Log Success", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "staticData": null,
+  "pinData": {},
+  "active": false
+}

@@ -1,0 +1,619 @@
+{
+  "name": "Koreayo Content Pipeline v9 - Integrated Bidirectional Linking",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 14
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-9760, -768],
+      "id": "6b77b98b-cbd8-4770-85b8-3ea59d3c9a6b",
+      "name": "Schedule Trigger",
+      "retryOnFail": true,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "QUEUE",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "9bf39e61-b3e0-457c-8f5d-db6649607226",
+      "name": "Read QUEUE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [-9536, -928],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MXIFz6a25EZv0J0R",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 32902284,
+          "mode": "list",
+          "cachedResultName": "CONTROL",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/edit#gid=32902284"
+        },
+        "options": {}
+      },
+      "id": "9dd74fed-b2fa-45c3-8945-fec78f45036f",
+      "name": "Read CONTROL",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [-9536, -768],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MXIFz6a25EZv0J0R",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1768774090,
+          "mode": "list",
+          "cachedResultName": "PUBLISHED",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/edit#gid=1768774090"
+        },
+        "options": {}
+      },
+      "id": "1581d946-04cc-44e0-abf9-ab3b2c98d796",
+      "name": "Read PUBLISHED List",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [-9536, -608],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "MXIFz6a25EZv0J0R",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "numberInputs": 3,
+        "output": "empty"
+      },
+      "id": "70a4c4c8-08f4-4d09-99a2-fd889f4dc47d",
+      "name": "Wait for All",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [-9264, -768]
+    },
+    {
+      "parameters": {
+        "jsCode": "const queueItems = $items('Read QUEUE');\nconst controlRows = $items('Read CONTROL').map(i => i.json);\nconst publishedRows = $items('Read PUBLISHED List').map(i => i.json);\n\nconst control = Object.fromEntries(controlRows.map(r => [String(r.setting_key || '').trim(), r.setting_value]));\n\nconst toBool = (v, def = false) => {\n  if (v === undefined || v === null || v === '') return def;\n  if (typeof v === 'boolean') return v;\n  return String(v).toLowerCase() === 'true';\n};\n\nconst blank = (v) => v === undefined || v === null || String(v).trim() === '';\n\nconst maxPosts = Number(control.max_posts_per_day || 2);\nconst queuePickStatus = String(control.queue_pick_status || 'queued').toLowerCase();\nconst defaultLanguage = String(control.default_language || 'en');\nconst defaultGeo = String(control.default_geo_scope || 'Korea');\nconst wpStatus = String(control.wordpress_post_status || 'draft');\nconst autoFaq = toBool(control.auto_faq_enabled, true);\nconst autoShortform = toBool(control.auto_shortform_enabled, true);\nconst adsenseSafe = toBool(control.adsense_safe_mode, true);\nconst timezone = String(control.timezone || 'Asia/Seoul');\nconst today = new Date().toISOString().slice(0, 10);\nconst compact = today.replace(/-/g, '');\nconst now = new Date();\n\n// Build comprehensive published articles list for internal linking\nconst publishedArticles = publishedRows\n  .filter(p => !blank(p.published_url) && !blank(p.title))\n  .map(p => ({\n    title: p.title,\n    url: p.published_url,\n    category: p.category || '',\n    subcategory: p.subcategory || '',\n    keyword: p.primary_keyword || '',\n    wp_post_id: p.wp_post_id || '',\n    slug: p.slug || '',\n    title_keywords: (p.title || '').toLowerCase().replace(/[^a-z0-9\\s]/g, '').split(/\\s+/).filter(w => w.length > 3)\n  }));\n\nconst candidatesWithIndex = queueItems\n  .map((item, idx) => ({ row: item.json, originalIndex: idx }))\n  .filter(({ row: r }) => {\n    const status = String(r.status || '').toLowerCase();\n    const retryCount = Number(r.retry_count || 0);\n    const nextRetryAt = String(r.next_retry_at || '').trim();\n    const retryOk = nextRetryAt === '' || new Date(nextRetryAt) <= now;\n\n    return status === queuePickStatus\n      && retryCount < 3\n      && retryOk\n      && !blank(r.seed_keyword)\n      && !blank(r.problem_angle)\n      && !blank(r.category)\n      && !blank(r.subcategory)\n      && !blank(r.target_type)\n      && !blank(r.content_type)\n      && !blank(r.language || defaultLanguage)\n      && blank(r.published_url);\n  })\n  .sort((a, b) => a.originalIndex - b.originalIndex)\n  .slice(0, maxPosts);\n\nreturn candidatesWithIndex.map(({ row, originalIndex }, idx) => {\n  const topicId = !blank(row.topic_id)\n    ? row.topic_id\n    : `KRY-${compact}-${String(idx + 1).padStart(3, '0')}`;\n\n  const rowNumber = originalIndex + 2;\n  \n  const currentCategory = row.category || '';\n  const currentSubcategory = row.subcategory || '';\n  const currentKeywords = (row.seed_keyword || '').toLowerCase().split(/\\s+/).filter(w => w.length > 2);\n  \n  const relatedArticles = publishedArticles\n    .map(article => {\n      let score = 0;\n      if (article.category.toLowerCase() === currentCategory.toLowerCase()) score += 3;\n      if (article.subcategory.toLowerCase() === currentSubcategory.toLowerCase()) score += 5;\n      const overlap = currentKeywords.filter(k => \n        article.title_keywords.includes(k) || \n        article.keyword.toLowerCase().includes(k)\n      ).length;\n      score += overlap * 2;\n      return { ...article, relevance_score: score };\n    })\n    .filter(a => a.relevance_score >= 3)\n    .sort((a, b) => b.relevance_score - a.relevance_score)\n    .slice(0, 5)\n    .map(a => ({ title: a.title, url: a.url, category: a.category }));\n\n  return {\n    json: {\n      ...row,\n      row_number: rowNumber,\n      topic_id: topicId,\n      language: row.language || defaultLanguage,\n      geo_scope: row.geo_scope || defaultGeo,\n      wordpress_post_status: wpStatus,\n      auto_faq_enabled: autoFaq,\n      auto_shortform_enabled: autoShortform,\n      adsense_safe_mode: adsenseSafe,\n      timezone,\n      created_at_runtime: today,\n      related_articles: relatedArticles,\n      all_published_articles: publishedArticles\n    }\n  };\n});"
+      },
+      "id": "d84eda68-5ab2-4d62-abbb-df8c33203267",
+      "name": "Prepare Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-8976, -768]
+    },
+    {
+      "parameters": {
+        "jsCode": "const itemIndex = $itemIndex;\nconst row = $items('Prepare Candidates')[itemIndex]?.json || {};\n\nif (!row.seed_keyword) {\n  throw new Error(`Build Draft Prompt: seed_keyword is missing.`);\n}\n\nconst systemPrompt = `You are a senior editorial strategist and SEO writer for Koreayo, a practical English-language content site for foreigners living in Korea.\n\nYou must follow these rules strictly:\n1. Write for real users, not for search engines.\n2. The target reader is a foreigner in Korea or preparing to come to Korea.\n3. Give the answer early. The first paragraph must contain a direct, practical answer.\n4. Do not write fluffy introductions or vague motivational language.\n5. Do not invent legal, visa, tax, banking facts.\n6. Keep the tone practical, clear, calm, and trustworthy.\n7. Use simple English.\n8. Output valid JSON only.\n\n=== TITLE RULES ===\n- No special characters except comma and question mark.\n\n=== CONTENT STYLE ===\n- Write in PROSE style with full paragraphs.\n- Each section MUST have 2-3 sentences before any bullet points.\n- Aim for 70% prose, 30% bullets.\n\n=== INTERNAL LINKING ===\n- Add 2-4 internal links to related articles.\n- Use EXACT URLs provided.\n- Place links naturally within sentences.\n- DO NOT add links in first paragraph or headings.\n\n=== CONTENT LENGTH ===\n- Minimum 1,200 words.\n- Each H2 section: 150-200 words minimum.\n\nOutput JSON schema:\n{\n  \"title\": \"string\",\n  \"slug\": \"string\",\n  \"meta_description\": \"string\",\n  \"excerpt\": \"string\",\n  \"primary_keyword\": \"string\",\n  \"secondary_keywords\": [\"string\"],\n  \"body_markdown\": \"string\",\n  \"faq\": [{\"question\": \"string\", \"answer\": \"string\"}],\n  \"internal_links_used\": [{\"anchor_text\": \"string\", \"url\": \"string\"}]\n}`;\n\nconst relatedArticlesInfo = (row.related_articles || [])\n  .map(a => `- \"${a.title}\" - URL: ${a.url}`)\n  .join('\\n');\n\nconst userPrompt = `Create one article draft for Koreayo.\n\nTopic:\n- category: ${row.category}\n- subcategory: ${row.subcategory}\n- seed_keyword: ${row.seed_keyword}\n- problem_angle: ${row.problem_angle}\n- content_type: ${row.content_type}\n- search_intent: ${row.search_intent}\n- language: ${row.language}\n\n=== RELATED ARTICLES FOR INTERNAL LINKING ===\n${relatedArticlesInfo || 'No related articles yet.'}\n\nInclude 2-4 internal links naturally. Output valid JSON only.`;\n\nreturn [{ json: { ...row, draft_system_prompt: systemPrompt, draft_user_prompt: userPrompt } }];"
+      },
+      "id": "f2fd7c91-9426-48d1-85d0-5d013e3dee14",
+      "name": "Build Draft Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-8624, -768]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "Bearer YOUR_OPENAI_API_KEY"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"gpt-4o-mini\", temperature: 0.6, response_format: { type: \"json_object\" }, messages: [{ role: \"system\", content: $json.draft_system_prompt }, { role: \"user\", content: $json.draft_user_prompt }] }) }}",
+        "options": {"timeout": 120000}
+      },
+      "id": "35431a70-b07d-41b6-8eca-21c6119cff4e",
+      "name": "OpenAI Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-8432, -768]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('Prepare Candidates');\nconst inputItems = $input.all();\n\nfunction extractJson(text) {\n  const cleaned = String(text || '').replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/```$/i, '').trim();\n  const first = cleaned.indexOf('{');\n  const last = cleaned.lastIndexOf('}');\n  if (first === -1 || last === -1) throw new Error('No JSON found');\n  return JSON.parse(cleaned.slice(first, last + 1));\n}\n\nreturn inputItems.map((item, idx) => {\n  const src = sourceItems[idx]?.json || {};\n  const text = item.json?.choices?.[0]?.message?.content || '';\n  const draft = extractJson(text);\n  return { json: { ...src, draft_raw: text, draft_json: draft } };\n});"
+      },
+      "id": "e194a213-b235-4621-a273-b0ba13c39779",
+      "name": "Parse Draft JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-8176, -768]
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $json;\n\nconst systemPrompt = `You are a QA editor for Koreayo. Review drafts and output publish-ready articles.\n\nScoring (0-100 scale):\n- content_depth: 1,200+ words = 75+\n- internal_linking: 2-4 natural links = 75+\n\nIf internal_linking < 75, ADD links using related_articles.\n\nOutput JSON:\n{\n  \"decision\": \"approve | revise | reject\",\n  \"overall_score\": 0-100,\n  \"scores\": { \"content_depth\": 0-100, \"internal_linking\": 0-100 },\n  \"final_title\": \"string\",\n  \"final_slug\": \"string\",\n  \"final_meta_description\": \"string\",\n  \"final_excerpt\": \"string\",\n  \"final_body_markdown\": \"string\",\n  \"final_faq\": [{\"question\": \"string\", \"answer\": \"string\"}],\n  \"internal_links_added\": [{\"anchor_text\": \"string\", \"url\": \"string\"}]\n}`;\n\nconst relatedArticlesInfo = (row.related_articles || []).map(a => `- \"${a.title}\" - URL: ${a.url}`).join('\\n');\n\nconst userPrompt = `Review this draft.\n\nTopic: ${row.seed_keyword}\nCategory: ${row.category} > ${row.subcategory}\n\nRelated articles for linking:\\n${relatedArticlesInfo || 'None'}\n\nDraft:\\n${JSON.stringify(row.draft_json, null, 2)}\n\nEnsure 2-4 internal links. Output valid JSON.`;\n\nreturn [{ json: { ...row, qa_system_prompt: systemPrompt, qa_user_prompt: userPrompt } }];"
+      },
+      "id": "50d1739b-1817-44da-8424-f7c6f10bd84f",
+      "name": "Build QA Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-7920, -768]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "x-api-key", "value": "YOUR_ANTHROPIC_API_KEY"},
+            {"name": "anthropic-version", "value": "2023-06-01"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"claude-sonnet-4-20250514\", max_tokens: 8192, system: $json.qa_system_prompt, messages: [{ role: \"user\", content: $json.qa_user_prompt }] }) }}",
+        "options": {"timeout": 120000}
+      },
+      "id": "0bb52b91-51b9-480b-89b5-67b47d68faba",
+      "name": "Claude QA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-7664, -768]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('Parse Draft JSON');\nconst inputItems = $input.all();\n\nfunction extractJson(text) {\n  const cleaned = String(text || '').replace(/^```json\\s*/i, '').replace(/```$/i, '').trim();\n  const first = cleaned.indexOf('{');\n  const last = cleaned.lastIndexOf('}');\n  if (first === -1 || last === -1) throw new Error('No JSON found');\n  return JSON.parse(cleaned.slice(first, last + 1));\n}\n\nfunction markdownToHtml(md, faq, related) {\n  if (!md) return '';\n  let html = md;\n  \n  // H1 제목 제거 (본문에 제목이 중복되지 않도록)\n  html = html.replace(/^#\\s+.+$/gm, '');\n  \n  // 링크 변환\n  html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href=\"$2\" style=\"color:#2563eb;text-decoration:underline;\">$1</a>');\n  \n  // 헤딩 변환 (H2, H3, H4)\n  html = html.replace(/^####\\s+(.+)$/gm, '<h4>$1</h4>');\n  html = html.replace(/^###\\s+(.+)$/gm, '<h3>$1</h3>');\n  html = html.replace(/^##\\s+(.+)$/gm, '<h2>$1</h2>');\n  \n  // 볼드 변환\n  html = html.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');\n  \n  // 불릿 리스트 및 숫자 리스트 변환\n  const lines = html.split('\\n');\n  let result = [];\n  let inList = false;\n  let listType = null;\n  \n  for (let i = 0; i < lines.length; i++) {\n    const line = lines[i];\n    const bulletMatch = line.match(/^[-*]\\s+(.+)$/);\n    const numberMatch = line.match(/^\\d+\\.\\s+(.+)$/);\n    \n    if (bulletMatch) {\n      if (!inList || listType !== 'ul') {\n        if (inList) result.push(listType === 'ul' ? '</ul>' : '</ol>');\n        result.push('<ul>');\n        inList = true;\n        listType = 'ul';\n      }\n      result.push('<li>' + bulletMatch[1] + '</li>');\n    } else if (numberMatch) {\n      if (!inList || listType !== 'ol') {\n        if (inList) result.push(listType === 'ul' ? '</ul>' : '</ol>');\n        result.push('<ol>');\n        inList = true;\n        listType = 'ol';\n      }\n      result.push('<li>' + numberMatch[1] + '</li>');\n    } else {\n      if (inList) {\n        result.push(listType === 'ul' ? '</ul>' : '</ol>');\n        inList = false;\n        listType = null;\n      }\n      if (line.trim() && !line.startsWith('<h') && !line.startsWith('<ul') && !line.startsWith('<ol') && !line.startsWith('<li') && !line.startsWith('</')) {\n        result.push('<p>' + line + '</p>');\n      } else if (line.trim()) {\n        result.push(line);\n      }\n    }\n  }\n  if (inList) {\n    result.push(listType === 'ul' ? '</ul>' : '</ol>');\n  }\n  \n  html = result.join('\\n');\n  \n  let faqHtml = '';\n  if (faq && faq.length > 0) {\n    faqHtml = '<div style=\"margin-top:2rem;\"><h2>FAQ</h2>' + faq.map(f => `<p><strong>Q: ${f.question}</strong></p><p>A: ${f.answer}</p>`).join('') + '</div>';\n  }\n  \n  let relatedHtml = '';\n  if (related && related.length > 0) {\n    relatedHtml = '<div style=\"margin-top:2rem;\"><h2>You Might Also Like</h2>' + related.map(r => `<p><a href=\"${r.url}\">${r.title}</a></p>`).join('') + '</div>';\n  }\n  \n  return html + faqHtml + relatedHtml;\n}\n\nreturn inputItems.map((item, idx) => {\n  const src = sourceItems[idx]?.json || {};\n  // Claude API returns content in item.json.content[0].text format\n  const text = item.json?.content?.[0]?.text || item.json?.choices?.[0]?.message?.content || '';\n  const qa = extractJson(text);\n  const rawScore = Number(qa.overall_score || 0);\n  const score = rawScore <= 10 ? rawScore * 10 : rawScore;\n  const decision = String(qa.decision || '').toLowerCase().trim();\n  const shouldSave = (decision === 'approve') || (decision === 'revise' && score >= 60);\n  const related = (src.related_articles || []).slice(0, 3);\n  const bodyHtml = markdownToHtml(qa.final_body_markdown || '', qa.final_faq || [], related);\n  let cleanTitle = (qa.final_title || '').replace(/[:*#|\\[\\]\"'\\-]/g, '').trim();\n  \n  return {\n    json: {\n      ...src,\n      qa_json: qa,\n      should_save: shouldSave,\n      final_title: cleanTitle,\n      final_slug: qa.final_slug,\n      final_meta_description: qa.final_meta_description,\n      final_excerpt: qa.final_excerpt,\n      final_body_html: bodyHtml,\n      final_faq: qa.final_faq,\n      internal_links_added: qa.internal_links_added || [],\n      qa_decision: qa.decision,\n      qa_score: qa.overall_score\n    }\n  };\n});"
+      },
+      "id": "fc41c04c-a346-4b38-9a60-0fe138425cec",
+      "name": "Parse QA JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-7392, -768]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2},
+          "conditions": [{"id": "should-save-check", "leftValue": "={{ $json.should_save }}", "rightValue": "={{ true }}", "operator": {"type": "boolean", "operation": "true"}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3cb631be-257d-438c-bf5a-3e99ce623192",
+      "name": "IF Should Save",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-7136, -768]
+    },
+    {
+      "parameters": {
+        "title": "={{$json.final_title}}",
+        "additionalFields": {
+          "content": "=<!-- wp:html -->{{$json.final_body_html}}<!-- /wp:html -->",
+          "slug": "={{$json.final_slug}}",
+          "status": "draft",
+          "categories": "={{ (() => { const map = { 'visa & legal': 3, 'visa': 3, 'money': 2, 'living': 4, 'housing': 1, 'travel': 311 }; return [map[String($json.category || '').toLowerCase()] || 4]; })() }}",
+          "excerpt": "={{$json.final_excerpt}}"
+        }
+      },
+      "id": "7d5546e7-c8e3-451d-a48f-cf70a6334500",
+      "name": "WordPress Create Draft",
+      "type": "n8n-nodes-base.wordpress",
+      "typeVersion": 1,
+      "position": [-6880, -864],
+      "credentials": {"wordpressApi": {"id": "OVzVPFgB9XvOEQA4", "name": "Wordpress account"}}
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://koreayo.com/wp-json/wp/v2/posts/' + $json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wordpressApi",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ meta: { _yoast_wpseo_focuskw: $items('IF Should Save')[$itemIndex]?.json?.seed_keyword || '', _yoast_wpseo_metadesc: $items('IF Should Save')[$itemIndex]?.json?.final_meta_description || '' } }) }}",
+        "options": {}
+      },
+      "id": "a2e3174a-5839-49fc-817e-42923334c860",
+      "name": "Update Yoast SEO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-6720, -864],
+      "credentials": {"wordpressApi": {"id": "OVzVPFgB9XvOEQA4", "name": "Wordpress account"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const wpResponse = $json;\nconst originalData = $items('IF Should Save')[$itemIndex]?.json || {};\nreturn { json: { ...originalData, wp_id: wpResponse.id, wp_link: wpResponse.link, wp_guid: wpResponse.guid?.rendered || '', wp_status: wpResponse.status, wp_slug: wpResponse.slug } };"
+      },
+      "id": "dd0057b4-9c3c-49d4-8d9b-984fc1bb949f",
+      "name": "Merge WP Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-6560, -864]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const rowNumber = $json.row_number;\nif (!rowNumber) throw new Error('row_number missing');\nreturn { row_number: rowNumber, topic_id: $json.topic_id || '', status: 'published', retry_count: Number($json.retry_count || 0), qa_score: Number($json.qa_score || 0), qa_decision: $json.qa_decision || 'approve', published_url: $json.wp_link || '', last_error: '', next_retry_at: '', note: `${$json.note || ''} | published` };"
+      },
+      "id": "7cda3d6b-a98f-41aa-ba18-e18fc0564da8",
+      "name": "Build Success Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-6352, -976]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { topic_id: $json.topic_id || '', published_url: $json.wp_link || '', published_at: new Date().toISOString(), category: $json.category || '', subcategory: $json.subcategory || '', primary_keyword: $json.seed_keyword || '', title: $json.final_title || '', language: $json.language || '', wp_post_id: String($json.wp_id || ''), slug: $json.final_slug || '' };"
+      },
+      "id": "75ce31a3-30e1-4726-8c0b-049758b16810",
+      "name": "Build PUBLISHED Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-6352, -864]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {"__rl": true, "value": "1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o", "mode": "id"},
+        "sheetName": {"__rl": true, "value": 1768774090, "mode": "list", "cachedResultName": "PUBLISHED"},
+        "columns": {"mappingMode": "autoMapInputData", "value": {}},
+        "options": {"cellFormat": "USER_ENTERED", "handlingExtraData": "ignoreIt"}
+      },
+      "id": "26d67630-cf29-4c97-8f3d-b3497773ac4a",
+      "name": "Append PUBLISHED",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [-6080, -864],
+      "credentials": {"googleSheetsOAuth2Api": {"id": "MXIFz6a25EZv0J0R", "name": "Google Sheets account"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const rowNumber = $json.row_number;\nif (!rowNumber) throw new Error('row_number missing');\nconst retryCount = Number($json.retry_count || 0) + 1;\nconst nextStatus = retryCount >= 3 ? 'blocked' : 'queued';\nreturn { row_number: rowNumber, topic_id: $json.topic_id || '', status: nextStatus, retry_count: retryCount, qa_score: Number($json.qa_score || 0), qa_decision: $json.qa_decision || 'reject', last_error: `QA failed: ${$json.qa_decision}`, next_retry_at: nextStatus === 'queued' ? new Date().toISOString() : '', note: `${$json.note || ''} | auto-fail`, seed_keyword: $json.seed_keyword || '', category: $json.category || '', subcategory: $json.subcategory || '' };"
+      },
+      "id": "27fc72ea-fbc7-44ab-84e3-cf60f7a0b44d",
+      "name": "Build Fail Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-6880, -656]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const r = $json.row_number; return JSON.stringify({ valueInputOption: 'USER_ENTERED', data: [{ range: `QUEUE!A${r}`, values: [[$json.topic_id || '']] }, { range: `QUEUE!B${r}`, values: [['processing']] }] }); })() }}",
+        "options": {}
+      },
+      "id": "186d13c3-857c-438e-8f4e-85570f178195",
+      "name": "Reserve QUEUE Processing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-8800, -768],
+      "credentials": {"googleSheetsOAuth2Api": {"id": "MXIFz6a25EZv0J0R", "name": "Google Sheets account"}}
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const r = $json.row_number; return JSON.stringify({ valueInputOption: 'USER_ENTERED', data: [{ range: `QUEUE!A${r}`, values: [[$json.topic_id || '']] }, { range: `QUEUE!B${r}`, values: [[$json.status || '']] }, { range: `QUEUE!V${r}`, values: [[$json.published_url || '']] }, { range: `QUEUE!Y${r}`, values: [[$json.qa_score || 0]] }, { range: `QUEUE!Z${r}`, values: [[$json.qa_decision || '']] }] }); })() }}",
+        "options": {}
+      },
+      "id": "10a42bb5-e00b-4b0d-99df-93d0d5622681",
+      "name": "QUEUE Update Success API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-6080, -976],
+      "credentials": {"googleSheetsOAuth2Api": {"id": "MXIFz6a25EZv0J0R", "name": "Google Sheets account"}}
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1iKpcjzmkQXKKD9L_eB59Ltfr0eylapI0CTWBc06Zz6o/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const r = $json.row_number; return JSON.stringify({ valueInputOption: 'USER_ENTERED', data: [{ range: `QUEUE!B${r}`, values: [[$json.status || '']] }, { range: `QUEUE!X${r}`, values: [[$json.retry_count || 0]] }, { range: `QUEUE!AB${r}`, values: [[$json.last_error || '']] }] }); })() }}",
+        "options": {}
+      },
+      "id": "70a18d6c-1c0e-44c6-9627-5d11f37798f5",
+      "name": "QUEUE Update Fail API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-6608, -656],
+      "credentials": {"googleSheetsOAuth2Api": {"id": "MXIFz6a25EZv0J0R", "name": "Google Sheets account"}}
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {"__rl": true, "value": "#koreayobot", "mode": "name"},
+        "text": "=:white_check_mark: *새 글 발행 완료*\n\n*제목:* {{ $('Merge WP Result').item.json.final_title }}\n*URL:* {{ $('Merge WP Result').item.json.wp_link }}\n*카테고리:* {{ $('Merge WP Result').item.json.category }} > {{ $('Merge WP Result').item.json.subcategory }}\n*QA 점수:* {{ $('Merge WP Result').item.json.qa_score }}",
+        "otherOptions": {}
+      },
+      "id": "slack-success-alert",
+      "name": "Slack Success Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [-5808, -976],
+      "credentials": {"slackApi": {"id": "SLACK_CREDENTIAL_ID", "name": "Slack account"}},
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {"__rl": true, "value": "#koreayobot", "mode": "name"},
+        "text": "=:x: *글 발행 실패*\n\n*키워드:* {{ $json.seed_keyword }}\n*실패 사유:* {{ $json.qa_decision }} (점수: {{ $json.qa_score }})\n*재시도:* {{ $json.retry_count }}/3",
+        "otherOptions": {}
+      },
+      "id": "slack-fail-alert",
+      "name": "Slack Fail Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [-6336, -656],
+      "credentials": {"slackApi": {"id": "SLACK_CREDENTIAL_ID", "name": "Slack account"}},
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare bidirectional linking: find related existing posts to update\n// Get data from Merge WP Result node which has all the original data\nconst mergeData = $items('Merge WP Result')[0]?.json || {};\n\nconst newPost = {\n  wp_post_id: mergeData.wp_id,\n  title: mergeData.final_title,\n  url: mergeData.wp_link,\n  category: mergeData.category,\n  subcategory: mergeData.subcategory,\n  primary_keyword: mergeData.seed_keyword,\n  slug: mergeData.final_slug || mergeData.wp_slug\n};\n\nconst allPublished = mergeData.all_published_articles || [];\n\nif (!newPost.wp_post_id || !newPost.url || allPublished.length < 2) {\n  return [{ json: { skip: true, reason: 'Not enough data for bidirectional linking', new_post: newPost } }];\n}\n\nconst newPostKeywords = (newPost.title || '').toLowerCase().replace(/[^a-z0-9\\s]/g, '').split(/\\s+/).filter(w => w.length > 3);\n\nconst relatedPosts = allPublished\n  .filter(post => post.wp_post_id && String(post.wp_post_id) !== String(newPost.wp_post_id) && post.url)\n  .map(post => {\n    let score = 0;\n    if (post.category && newPost.category && post.category.toLowerCase() === newPost.category.toLowerCase()) score += 3;\n    if (post.subcategory && newPost.subcategory && post.subcategory.toLowerCase() === newPost.subcategory.toLowerCase()) score += 5;\n    const postKeywords = (post.title || '').toLowerCase().replace(/[^a-z0-9\\s]/g, '').split(/\\s+/).filter(w => w.length > 3);\n    const overlap = newPostKeywords.filter(k => postKeywords.includes(k)).length;\n    score += overlap * 2;\n    if (post.keyword && newPost.primary_keyword) {\n      if (post.keyword.toLowerCase().includes(newPost.primary_keyword.toLowerCase()) || newPost.primary_keyword.toLowerCase().includes(post.keyword.toLowerCase())) score += 4;\n    }\n    return { ...post, relevance_score: score };\n  })\n  .filter(post => post.relevance_score >= 4)\n  .sort((a, b) => b.relevance_score - a.relevance_score)\n  .slice(0, 3);\n\nif (relatedPosts.length === 0) {\n  return [{ json: { skip: true, reason: 'No related posts found', new_post: newPost } }];\n}\n\nreturn relatedPosts.map(post => ({\n  json: {\n    target_wp_post_id: post.wp_post_id,\n    target_title: post.title,\n    target_url: post.url,\n    new_post: newPost,\n    relevance_score: post.relevance_score\n  }\n}));"
+      },
+      "id": "bidir-find-related",
+      "name": "Find Related Posts for Bidirectional",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-5600, -864]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2},
+          "conditions": [{"id": "check-skip", "leftValue": "={{ $json.skip }}", "rightValue": "={{ true }}", "operator": {"type": "boolean", "operation": "notTrue"}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bidir-if-has-related",
+      "name": "IF Has Related Posts",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-5360, -864]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://koreayo.com/wp-json/wp/v2/posts/' + $json.target_wp_post_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wordpressApi",
+        "options": {}
+      },
+      "id": "bidir-fetch-target",
+      "name": "Fetch Target Post Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-5120, -944],
+      "credentials": {"wordpressApi": {"id": "OVzVPFgB9XvOEQA4", "name": "Wordpress account"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "const wpPost = $json;\nconst taskData = $items('IF Has Related Posts')[$itemIndex]?.json || {};\n\nconst currentContent = wpPost.content?.rendered || '';\nconst newPost = taskData.new_post;\n\nif (currentContent.includes(newPost.url) || currentContent.includes(newPost.slug)) {\n  return [{ json: { skip: true, reason: 'Already linked', target_wp_id: taskData.target_wp_post_id } }];\n}\n\nreturn [{ json: { target_wp_post_id: taskData.target_wp_post_id, target_title: taskData.target_title, new_post: newPost, current_content: currentContent } }];"
+      },
+      "id": "bidir-check-existing",
+      "name": "Check If Already Linked",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-4880, -944]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2},
+          "conditions": [{"id": "check-needs", "leftValue": "={{ $json.skip }}", "rightValue": "={{ true }}", "operator": {"type": "boolean", "operation": "notTrue"}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bidir-if-needs-link",
+      "name": "IF Needs Bidirectional Link",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-4640, -944]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\n\nconst systemPrompt = `You are an internal linking specialist. Insert ONE link to a new article into existing content.\n\nRULES:\n1. Find ONE natural place for the link.\n2. Anchor text: 2-5 words, contextually relevant.\n3. NO links in first paragraph or headings.\n4. Add link mid-paragraph where context relates.\n5. DO NOT change other content.\n6. If no natural place, set link_added: false.\n\nOutput JSON:\n{ \"modified_content\": \"<HTML with link>\", \"link_added\": true/false, \"anchor_text\": \"text\" or null }`;\n\nconst userPrompt = `Insert link to NEW article into existing article.\n\nNEW ARTICLE:\n- Title: \"${data.new_post.title}\"\n- URL: ${data.new_post.url}\n- Topic: ${data.new_post.primary_keyword || data.new_post.category}\n\nEXISTING ARTICLE: \"${data.target_title}\"\n\nEXISTING HTML:\n${data.current_content}\n\nFind ONE natural place. Output JSON only.`;\n\nreturn [{ json: { ...data, ai_system_prompt: systemPrompt, ai_user_prompt: userPrompt } }];"
+      },
+      "id": "bidir-build-prompt",
+      "name": "Build Bidirectional AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-4400, -1024]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Authorization", "value": "Bearer YOUR_OPENAI_API_KEY"}, {"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"gpt-4o-mini\", temperature: 0.2, response_format: { type: \"json_object\" }, messages: [{ role: \"system\", content: $json.ai_system_prompt }, { role: \"user\", content: $json.ai_user_prompt }] }) }}",
+        "options": {"timeout": 90000}
+      },
+      "id": "bidir-openai",
+      "name": "OpenAI Bidirectional Link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-4160, -1024]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceData = $items('Build Bidirectional AI Prompt')[$itemIndex]?.json || {};\nconst aiResponse = $json;\n\nfunction extractJson(text) {\n  const cleaned = String(text || '').replace(/^```json\\s*/i, '').replace(/```$/i, '').trim();\n  const first = cleaned.indexOf('{');\n  const last = cleaned.lastIndexOf('}');\n  if (first === -1 || last === -1) throw new Error('No JSON');\n  return JSON.parse(cleaned.slice(first, last + 1));\n}\n\ntry {\n  const result = extractJson(aiResponse.choices?.[0]?.message?.content || '');\n  if (!result.link_added) return [{ json: { skip: true, reason: 'No natural place found' } }];\n  return [{ json: { target_wp_post_id: sourceData.target_wp_post_id, target_title: sourceData.target_title, new_post_title: sourceData.new_post.title, new_post_url: sourceData.new_post.url, modified_content: result.modified_content, anchor_text: result.anchor_text } }];\n} catch (e) {\n  return [{ json: { skip: true, reason: 'AI error: ' + e.message } }];\n}"
+      },
+      "id": "bidir-parse-response",
+      "name": "Parse Bidirectional Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-3920, -1024]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2},
+          "conditions": [{"id": "check-added", "leftValue": "={{ $json.skip }}", "rightValue": "={{ true }}", "operator": {"type": "boolean", "operation": "notTrue"}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bidir-if-link-added",
+      "name": "IF Bidirectional Link Added",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-3680, -1024]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://koreayo.com/wp-json/wp/v2/posts/' + $json.target_wp_post_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wordpressApi",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.modified_content }) }}",
+        "options": {}
+      },
+      "id": "bidir-update-wp",
+      "name": "Update Target Post with Link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-3440, -1104],
+      "credentials": {"wordpressApi": {"id": "OVzVPFgB9XvOEQA4", "name": "Wordpress account"}}
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {"__rl": true, "value": "#koreayobot", "mode": "name"},
+        "text": "=:arrows_counterclockwise: *양방향 링크 추가*\n\n*수정된 글:* {{ $items('IF Bidirectional Link Added')[0].json.target_title }}\n*추가된 링크:* {{ $items('IF Bidirectional Link Added')[0].json.new_post_title }}\n*앵커 텍스트:* \"{{ $items('IF Bidirectional Link Added')[0].json.anchor_text }}\"",
+        "otherOptions": {}
+      },
+      "id": "bidir-slack-alert",
+      "name": "Slack Bidirectional Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [-3200, -1104],
+      "credentials": {"slackApi": {"id": "SLACK_CREDENTIAL_ID", "name": "Slack account"}},
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {"__rl": true, "value": "#koreayobot", "mode": "name"},
+        "text": "=:information_source: *양방향 링크 스킵*\n\n*사유:* {{ $json.reason || 'No related posts or already linked' }}",
+        "otherOptions": {}
+      },
+      "id": "bidir-skip-alert",
+      "name": "Slack Bidirectional Skip Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [-5120, -784],
+      "credentials": {"slackApi": {"id": "SLACK_CREDENTIAL_ID", "name": "Slack account"}},
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{"node": "Read QUEUE", "type": "main", "index": 0}, {"node": "Read CONTROL", "type": "main", "index": 0}, {"node": "Read PUBLISHED List", "type": "main", "index": 0}]]
+    },
+    "Read QUEUE": {"main": [[{"node": "Wait for All", "type": "main", "index": 0}]]},
+    "Read CONTROL": {"main": [[{"node": "Wait for All", "type": "main", "index": 1}]]},
+    "Read PUBLISHED List": {"main": [[{"node": "Wait for All", "type": "main", "index": 2}]]},
+    "Wait for All": {"main": [[{"node": "Prepare Candidates", "type": "main", "index": 0}]]},
+    "Prepare Candidates": {"main": [[{"node": "Reserve QUEUE Processing", "type": "main", "index": 0}]]},
+    "Reserve QUEUE Processing": {"main": [[{"node": "Build Draft Prompt", "type": "main", "index": 0}]]},
+    "Build Draft Prompt": {"main": [[{"node": "OpenAI Draft", "type": "main", "index": 0}]]},
+    "OpenAI Draft": {"main": [[{"node": "Parse Draft JSON", "type": "main", "index": 0}]]},
+    "Parse Draft JSON": {"main": [[{"node": "Build QA Prompt", "type": "main", "index": 0}]]},
+    "Build QA Prompt": {"main": [[{"node": "Claude QA", "type": "main", "index": 0}]]},
+    "Claude QA": {"main": [[{"node": "Parse QA JSON", "type": "main", "index": 0}]]},
+    "Parse QA JSON": {"main": [[{"node": "IF Should Save", "type": "main", "index": 0}]]},
+    "IF Should Save": {"main": [[{"node": "WordPress Create Draft", "type": "main", "index": 0}], [{"node": "Build Fail Update", "type": "main", "index": 0}]]},
+    "WordPress Create Draft": {"main": [[{"node": "Update Yoast SEO", "type": "main", "index": 0}]]},
+    "Update Yoast SEO": {"main": [[{"node": "Merge WP Result", "type": "main", "index": 0}]]},
+    "Merge WP Result": {"main": [[{"node": "Build Success Update", "type": "main", "index": 0}, {"node": "Build PUBLISHED Row", "type": "main", "index": 0}]]},
+    "Build Success Update": {"main": [[{"node": "QUEUE Update Success API", "type": "main", "index": 0}]]},
+    "QUEUE Update Success API": {"main": [[{"node": "Slack Success Alert", "type": "main", "index": 0}]]},
+    "Build PUBLISHED Row": {"main": [[{"node": "Append PUBLISHED", "type": "main", "index": 0}]]},
+    "Append PUBLISHED": {"main": [[{"node": "Find Related Posts for Bidirectional", "type": "main", "index": 0}]]},
+    "Build Fail Update": {"main": [[{"node": "QUEUE Update Fail API", "type": "main", "index": 0}]]},
+    "QUEUE Update Fail API": {"main": [[{"node": "Slack Fail Alert", "type": "main", "index": 0}]]},
+    "Find Related Posts for Bidirectional": {"main": [[{"node": "IF Has Related Posts", "type": "main", "index": 0}]]},
+    "IF Has Related Posts": {"main": [[{"node": "Fetch Target Post Content", "type": "main", "index": 0}], [{"node": "Slack Bidirectional Skip Alert", "type": "main", "index": 0}]]},
+    "Fetch Target Post Content": {"main": [[{"node": "Check If Already Linked", "type": "main", "index": 0}]]},
+    "Check If Already Linked": {"main": [[{"node": "IF Needs Bidirectional Link", "type": "main", "index": 0}]]},
+    "IF Needs Bidirectional Link": {"main": [[{"node": "Build Bidirectional AI Prompt", "type": "main", "index": 0}], [{"node": "Slack Bidirectional Skip Alert", "type": "main", "index": 0}]]},
+    "Build Bidirectional AI Prompt": {"main": [[{"node": "OpenAI Bidirectional Link", "type": "main", "index": 0}]]},
+    "OpenAI Bidirectional Link": {"main": [[{"node": "Parse Bidirectional Response", "type": "main", "index": 0}]]},
+    "Parse Bidirectional Response": {"main": [[{"node": "IF Bidirectional Link Added", "type": "main", "index": 0}]]},
+    "IF Bidirectional Link Added": {"main": [[{"node": "Update Target Post with Link", "type": "main", "index": 0}], [{"node": "Slack Bidirectional Skip Alert", "type": "main", "index": 0}]]},
+    "Update Target Post with Link": {"main": [[{"node": "Slack Bidirectional Alert", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "staticData": null,
+  "pinData": {},
+  "active": false
+}
